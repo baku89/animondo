@@ -1,0 +1,39 @@
+:root
+	-webkit-text-size-adjust 100%
+	interpolate-size allow-keywords
+
+*, &::before, &::after
+	-webkit-appearance none
+	appearance none
+	box-sizing border-box
+	margin 0
+	padding 0
+	text-indent 0
+	color inherit
+	font-size inherit
+	font-weight inherit
+	font-family inherit
+	line-height inherit
+	outline none
+	text-decoration none
+	background none
+	border none
+	list-style none
+
+::selection
+	background var(--color-text)
+	color var(--color-bg)
+
+html, body
+	overflow hidden
+
+html
+	color black
+	font-family 'Zen Kaku Gothic New', sans-serif
+	font-size 16px
+
+body
+	background white
+
+with-alpha($color, $alpha)
+	unquote('color-mix(in hsl, ' + $color + ' ' + ($alpha * 100) + '%, transparent)')

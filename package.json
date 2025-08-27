@@ -1,0 +1,44 @@
+{
+	"name": "chigyo-games",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "nuxt build",
+		"dev": "nuxt dev --host",
+		"lint": "eslint --fix",
+		"generate": "nuxt generate",
+		"preview": "nuxt generate && nuxt preview",
+		"postinstall": "nuxt prepare"
+	},
+	"dependencies": {
+		"@pinia/nuxt": "^0.11.2",
+		"@types/lodash-es": "^4.17.12",
+		"lodash-es": "^4.17.21",
+		"nuxt": "^4.0.0",
+		"pinia": "^3.0.3",
+		"regl": "^2.1.1",
+		"stylus": "^0.64.0",
+		"vite-plugin-glslify": "^2.3.0",
+		"vue": "^3.5.19"
+	},
+	"devDependencies": {
+		"@eslint/js": "^9.31.0",
+		"@nuxt/eslint": "^1.6.0",
+		"@prettier/plugin-pug": "^3.4.2",
+		"@typescript-eslint/eslint-plugin": "^8.40.0",
+		"@typescript-eslint/parser": "^8.40.0",
+		"@vueuse/core": "^13.7.0",
+		"eslint": "^9.31.0",
+		"eslint-config-prettier": "^10.1.5",
+		"eslint-plugin-prettier-vue": "^5.0.0",
+		"eslint-plugin-simple-import-sort": "^12.1.1",
+		"eslint-plugin-unused-imports": "^4.1.4",
+		"eslint-plugin-vue": "^10.3.0",
+		"eventemitter3": "^5.0.1",
+		"linearly": "^0.34.0",
+		"prettier": "^3.6.2",
+		"prettier-plugin-organize-imports": "^4.2.0",
+		"vue-eslint-parser": "^10.2.0"
+	},
+	"packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+}

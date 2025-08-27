@@ -1,0 +1,12 @@
+{
+	"search.exclude": {
+		"**/.nuxt": true,
+		"**/node_modules": true,
+		"**.git": true
+	},
+	"files.exclude": {
+		"**/.nuxt": true,
+		"**/node_modules": true,
+		"**.git": true
+	}
+}
