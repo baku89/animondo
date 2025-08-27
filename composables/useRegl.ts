@@ -75,7 +75,6 @@ export function useRegl<Uniforms extends Record<string, any>>(
 			const dpi = window.devicePixelRatio
 			canvas.width = canvas.clientWidth * dpi
 			canvas.height = canvas.clientHeight * dpi
-			console.log(canvas.width, canvas.height)
 		}
 
 		resizeCanvas()
