@@ -3,15 +3,30 @@ precision mediump float;
 uniform vec2 resolution;
 uniform sampler2D video;
 
-#define BIRTH 1
-#define UP    2
-#define RIGHT 3
-#define DOWN  4
-#define LEFT  5
-#define DEATH 6
+#define TILE_BIRTH 1
+#define TILE_UP    2
+#define TILE_RIGHT 3
+#define TILE_DOWN  4
+#define TILE_LEFT  5
+#define TILE_DEATH 6
 
-vec4 tile(vec2 uv, sampler2D texture, int index) {
-
+vec4 tile(vec2 uv, sampler2D texture, int index, int rotation) {
+    // Apply rotation to UV coordinates
+    // rotation: 0=0°, 1=90°, 2=180°, 3=270°
+    // Note: Y-axis is already flipped in main(), so we need to adjust rotation accordingly
+    vec2 rotatedUV = uv;
+    
+    if (rotation == 1) {
+        // 90° clockwise (adjusted for flipped Y): (x,y) -> (y, 1-x)
+        rotatedUV = vec2(uv.y, 1.0 - uv.x);
+    } else if (rotation == 2) {
+        // 180°: (x,y) -> (1-x, 1-y)
+        rotatedUV = vec2(1.0 - uv.x, 1.0 - uv.y);
+    } else if (rotation == 3) {
+        // 270° clockwise (adjusted for flipped Y): (x,y) -> (1-y, x)
+        rotatedUV = vec2(1.0 - uv.y, uv.x);
+    }
+    
     float indexFloat = float(index) - 1.0;
 
     vec2 offset = vec2(
@@ -19,7 +34,7 @@ vec4 tile(vec2 uv, sampler2D texture, int index) {
         floor(indexFloat / 3.0)
     );
     
-    return texture2D(texture, (uv + offset) / vec2(3.0, 2.0));
+    return texture2D(texture, (rotatedUV + offset) / vec2(3.0, 2.0));
 }
 
 
@@ -30,7 +45,7 @@ void main() {
         * 2.0;
     
     // Sample video texture
-    vec4 videoColor = tile(fract(coord), video, RIGHT);
+    vec4 videoColor = tile(fract(coord), video, TILE_RIGHT, 0);
 
     
     gl_FragColor = videoColor;
