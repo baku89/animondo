@@ -25,24 +25,13 @@ export function useVideoTexture(regl: Regl.Regl, videoSrc: string) {
 		texture.value = regl.texture(videoElement)
 	}
 
-	const getUpdatedTexture = () => {
-		if (!texture.value || !video.value) return null
-
-		try {
-			texture.value.subimage(video.value)
-			return texture.value
-		} catch {
-			return texture.value
-		}
-	}
-
 	const setFrame = (frameNumber: number, fps: number = 12) => {
 		if (!texture.value || !video.value) return
 
-		const timeInSeconds = frameNumber / fps
+		const timeInSeconds = (frameNumber + 0.01) / fps
 		video.value.currentTime = timeInSeconds
 
-		return getUpdatedTexture()
+		texture.value.subimage(video.value)
 	}
 
 	// Clean up on unmount
@@ -59,7 +48,6 @@ export function useVideoTexture(regl: Regl.Regl, videoSrc: string) {
 	return {
 		texture,
 		load,
-		getUpdatedTexture,
 		setFrame,
 	}
 }

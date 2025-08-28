@@ -7,7 +7,7 @@
 <script setup lang="ts">
 import type Regl from 'regl'
 import {useRegl} from '~/composables/useRegl'
-import {useVideoTexture} from '~/composables/useVideoTexture'
+import {useVideoTextureArray} from '~/composables/useVideoTextureArray'
 import TileFragmentShader from '~/components/shaders/tile.frag?raw'
 import {Direction, TileMap, type MovePattern} from '~/utils/tile'
 import {useIntervalFn} from '@vueuse/core'
@@ -23,7 +23,7 @@ interface Uniforms {
 	tileMapSize: Regl.Vec2
 }
 
-let videoTexture: ReturnType<typeof useVideoTexture> | null = null
+let videoTextureArray: ReturnType<typeof useVideoTextureArray> | null = null
 let tileMap: TileMap | null = null
 
 // const sampleMovePattern: MovePattern = [
@@ -55,8 +55,11 @@ useRegl<Uniforms>(canvas, {
 	frag: TileFragmentShader,
 	async onInit(regl) {
 		// Load video texture
-		videoTexture = useVideoTexture(regl, 'sprites/01_baku.mp4')
-		await videoTexture.load()
+		videoTextureArray = useVideoTextureArray(regl, [
+			'sprites/00_noemie.mp4',
+			'sprites/01_baku.mp4',
+		])
+		await videoTextureArray.load()
 
 		// Initialize tile map
 		tileMap = new TileMap(regl, 2, 2)
@@ -65,8 +68,8 @@ useRegl<Uniforms>(canvas, {
 		// Start the timer
 		useIntervalFn(() => {
 			currentFrame = scalar.mod(currentFrame + 1, 8)
-			videoTexture?.setFrame(currentFrame)
-		}, 1000 / 8)
+			videoTextureArray?.setFrame(currentFrame)
+		}, 1000 / 12)
 
 		return {
 			resolution(context: Regl.DefaultContext) {
@@ -78,9 +81,7 @@ useRegl<Uniforms>(canvas, {
 		}
 	},
 	onFrame() {
-		videoTexture?.setFrame(currentFrame)
-
-		const video = videoTexture?.getUpdatedTexture()
+		const video = videoTextureArray?.textureArray.value[0]
 
 		if (!video) return null
 
