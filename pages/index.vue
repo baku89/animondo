@@ -49,12 +49,12 @@ const zui = useZUI(canvas)
 const sampleMovePattern = new MovePattern({
 	array: [
 		[
-			{in: Direction.None, out: Direction.Up},
-			{in: Direction.Up, out: Direction.None},
+			{in: Direction.None, out: Direction.Down},
+			{in: Direction.Down, out: Direction.None},
 		],
 		[
-			{in: Direction.Down, out: Direction.Right},
-			{in: Direction.Left, out: Direction.Down},
+			{in: Direction.Up, out: Direction.Right},
+			{in: Direction.Left, out: Direction.Up},
 		],
 	],
 })
@@ -88,7 +88,7 @@ useRegl<Uniforms>(canvas, {
 			}
 			currentFrame = scalar.mod(currentFrame + 1, 8)
 			videoTextureArray?.setFrame(currentFrame)
-		}, 1000 / 9)
+		}, 1000 / 24)
 
 		return {
 			resolution(context: Regl.DefaultContext) {
@@ -122,4 +122,10 @@ useRegl<Uniforms>(canvas, {
 	position fixed
 	width 100vw
 	height 100svh
+	cursor grab
+	touch-action none
+	user-select none
+	-webkit-user-select none
+	-moz-user-select none
+	-ms-user-select none
 </style>

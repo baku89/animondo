@@ -102,10 +102,10 @@ vec4 drawOverlappingTiles(vec2 coord) {
     
     // Neighboring tiles with proper UV offsets for 0.5 overlap
     // UV coordinates need to be shifted to show the overlapping portion
-    vec4 up = drawTileAt(tileCoord + vec2(0.0, 1.0), uv + vec2(0.0, 1.0));
-    vec4 down = drawTileAt(tileCoord + vec2(0.0, -1.0), uv - vec2(0.0, 1.0));
-    vec4 left = drawTileAt(tileCoord + vec2(-1.0, 0.0), uv + vec2(1.0, 0.0));
-    vec4 right = drawTileAt(tileCoord + vec2(1.0, 0.0), uv - vec2(1.0, 0.0));
+    vec4 up = drawTileAt(tileCoord + vec2(0.0, -1.0), uv + vec2(0.0, -1.0));
+    vec4 down = drawTileAt(tileCoord + vec2(0.0, 1.0), uv - vec2(0.0, -1.0));
+    vec4 left = drawTileAt(tileCoord + vec2(-1.0, 0.0), uv + vec2(-1.0, 0.0));
+    vec4 right = drawTileAt(tileCoord + vec2(1.0, 0.0), uv - vec2(-1.0, 0.0));
     
     // Only include tiles where UV is in valid overlap range
     vec4 result = center;
@@ -121,7 +121,7 @@ vec4 drawOverlappingTiles(vec2 coord) {
 
 void main() {
     // Convert to normalized coordinates
-    vec2 aspect = vec2(1.0, resolution.y / resolution.x); 
+    vec2 aspect = vec2(1.0, -resolution.y / resolution.x); 
     vec2 normCoord = (gl_FragCoord.xy / resolution - 0.5) * aspect * 2.0;
     
     // Apply navigation transformation
