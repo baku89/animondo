@@ -8,7 +8,6 @@ export function useVideoTexture(regl: Regl.Regl, videoSrc: string) {
 		// Create video element
 		const videoElement = document.createElement('video')
 		videoElement.src = '/eu-japan-animation-residency-collab/' + videoSrc
-		videoElement.loop = true
 		videoElement.muted = true
 		videoElement.crossOrigin = 'anonymous'
 		videoElement.playsInline = true
@@ -24,9 +23,6 @@ export function useVideoTexture(regl: Regl.Regl, videoSrc: string) {
 
 		// Create texture
 		texture.value = regl.texture(videoElement)
-
-		// Start playing
-		videoElement.play()
 	}
 
 	const getUpdatedTexture = () => {
@@ -38,6 +34,15 @@ export function useVideoTexture(regl: Regl.Regl, videoSrc: string) {
 		} catch {
 			return texture.value
 		}
+	}
+
+	const setFrame = (frameNumber: number, fps: number = 12) => {
+		if (!texture.value || !video.value) return
+
+		const timeInSeconds = frameNumber / fps
+		video.value.currentTime = timeInSeconds
+
+		return getUpdatedTexture()
 	}
 
 	// Clean up on unmount
@@ -55,5 +60,6 @@ export function useVideoTexture(regl: Regl.Regl, videoSrc: string) {
 		texture,
 		load,
 		getUpdatedTexture,
+		setFrame,
 	}
 }

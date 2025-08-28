@@ -148,10 +148,12 @@ export class TileMap {
 				}
 			}
 		}
+
+		this.#updateTexture()
 	}
 
 	// テクスチャを更新（GPUに送信）
-	updateTexture() {
+	#updateTexture() {
 		this.#texture.subimage(this.#data)
 	}
 
