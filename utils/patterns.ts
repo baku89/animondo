@@ -1,5 +1,5 @@
 import {vec2} from 'linearly'
-import {Direction, MovePattern, type Move} from './tile'
+import {Direction, invertMovePattern, MovePattern, type Move} from './tile'
 
 const _ = Direction.None
 const U = Direction.Up
@@ -12,13 +12,8 @@ function move(_in: Direction, out: Direction): Move {
 }
 
 export const size = {width: 16, height: 16}
-
-export const right = new MovePattern({
-	...size,
-	initialize: (x, y) => {
-		return {in: Direction.Left, out: Direction.Right}
-	},
-})
+export const width = size.width
+export const height = size.height
 
 export const clockwise = new MovePattern({
 	...size,
@@ -45,6 +40,8 @@ export const clockwise = new MovePattern({
 	},
 })
 
+export const counterClockwise = invertMovePattern(clockwise)
+
 export function radialMask(pattern: MovePattern, radius: number) {
 	const origin: vec2 = [size.width / 2 - 0.5, size.height / 2 - 0.5]
 
@@ -57,13 +54,6 @@ export function radialMask(pattern: MovePattern, radius: number) {
 	})
 }
 
-export const down = new MovePattern({
-	...size,
-	initialize: (x, y) => {
-		return {in: Direction.Up, out: Direction.Down}
-	},
-})
-
 export const upDown = new MovePattern({
 	...size,
 	initialize: (x, y) => {
@@ -74,6 +64,8 @@ export const upDown = new MovePattern({
 	},
 })
 
+export const downUp = invertMovePattern(upDown)
+
 export const leftRight = new MovePattern({
 	...size,
 	initialize: (x, y) => {
@@ -83,3 +75,23 @@ export const leftRight = new MovePattern({
 		return {in: Direction.Left, out: Direction.Right}
 	},
 })
+
+export const rightLeft = invertMovePattern(leftRight)
+
+export const down = new MovePattern({
+	...size,
+	initialize: (x, y) => {
+		return {in: Direction.Up, out: Direction.Down}
+	},
+})
+
+export const up = invertMovePattern(down)
+
+export const right = new MovePattern({
+	...size,
+	initialize: (x, y) => {
+		return {in: Direction.Left, out: Direction.Right}
+	},
+})
+
+export const left = invertMovePattern(right)

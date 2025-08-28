@@ -34,7 +34,8 @@ export type TileDisplay = {
 export type Move = {in: Direction; out: Direction}
 
 // パターンを表すクラス
-export class MovePattern extends Array2D<Move> {}
+export type MovePattern = Array2D<Move>
+export const MovePattern = Array2D
 
 // moveToTileDisplayのルックアップテーブル [inDir][outDir] -> TileDisplay
 // Direction enum: None=0, Up=1, Right=2, Down=3, Left=4

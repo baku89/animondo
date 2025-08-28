@@ -88,42 +88,61 @@ useRegl<Uniforms>(canvas, {
 			numberOfVideos: 3,
 		})
 
-		// パターンジェネレーター関数（パターンインデックスを受け取る）
-		tileMap.setMovePattern(step => {
-			// return c
-
-			if (step <= Patterns.size.width / 2) {
-				return Patterns.radialMask(Patterns.clockwise, step)
+		// パターンジェネレーター関数（常にcを返す）
+		tileMap.setMovePattern(function* (): Generator<MovePattern, never, void> {
+			// だんだん広がる
+			for (let i = 0; i < Patterns.size.width / 2; i++) {
+				yield Patterns.radialMask(Patterns.clockwise, i)
 			}
 
-			return Patterns.down
+			while (true) {
+				yield Patterns.clockwise
+				yield Patterns.clockwise
+				yield Patterns.counterClockwise
 
-			// return Patterns.clockwise
+				yield Patterns.upDown
+				yield Patterns.downUp
+				yield Patterns.leftRight
+				yield Patterns.rightLeft
 
-			// if (step === 0) {
-			// 	return new MovePattern({
-			// 		...Patterns.size,
-			// 		initialize: (x, y) => {
-			// 			return {in: Direction.None, out: Direction.Right}
-			// 		},
-			// 	})
-			// }
-			// const index = Math.floor(step / 2) % 4
-			// let pattern!: MovePattern
-			// if (index === 0) {
-			// 	pattern = Patterns.upDown
-			// }
-			// if (index === 1) {
-			// 	pattern = invertMovePattern(Patterns.upDown)
-			// }
-			// if (index === 2) {
-			// 	pattern = Patterns.leftRight
-			// }
-			// if (index === 3) {
-			// 	pattern = invertMovePattern(Patterns.leftRight)
-			// }
-			// return pattern
+				yield Patterns.up
+				yield Patterns.right
+				yield Patterns.down
+				yield Patterns.left
+				yield Patterns.down
+				yield Patterns.right
+				yield Patterns.up
+
+				yield Patterns.clockwise
+				yield Patterns.clockwise
+			}
 		})
+
+		// return Patterns.clockwise
+
+		// if (step === 0) {
+		// 	return new MovePattern({
+		// 		...Patterns.size,
+		// 		initialize: (x, y) => {
+		// 			return {in: Direction.None, out: Direction.Right}
+		// 		},
+		// 	})
+		// }
+		// const index = Math.floor(step / 2) % 4
+		// let pattern!: MovePattern
+		// if (index === 0) {
+		// 	pattern = Patterns.upDown
+		// }
+		// if (index === 1) {
+		// 	pattern = invertMovePattern(Patterns.upDown)
+		// }
+		// if (index === 2) {
+		// 	pattern = Patterns.leftRight
+		// }
+		// if (index === 3) {
+		// 	pattern = invertMovePattern(Patterns.leftRight)
+		// }
+		// return pattern
 
 		// Start the timer
 		useIntervalFn(() => {

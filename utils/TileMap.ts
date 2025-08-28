@@ -26,9 +26,9 @@ export class TileMap {
 	#data: Uint8Array
 	#texture: Regl.Texture2D
 
-	#patternGenerator: ((step: number) => MovePattern) | null = null
-	#currentStep: number = 0
+	#patternGenerator: Generator<MovePattern, never, void> | null = null
 	#currentPattern: MovePattern | null = null
+	#nextPattern: MovePattern | null = null
 
 	/** 各タイルのビデオインデックス */
 	#indices: Array2D<number>
@@ -60,12 +60,27 @@ export class TileMap {
 		return this.#texture
 	}
 
-	setMovePattern(patternGenerator: (step: number) => MovePattern) {
-		this.#patternGenerator = patternGenerator
-		this.#currentStep = 0
+	setMovePattern(
+		patternGeneratorFn: () => Generator<MovePattern, never, void>
+	) {
+		this.#patternGenerator = patternGeneratorFn()
 
-		// 初期状態も遷移パターン (0-1) から開始
-		this.#currentPattern = this.#patternGenerator(0)
+		// ジェネレーターから最初の2つのパターンを取得してキャッシュ
+		const firstResult = this.#patternGenerator.next()
+		const secondResult = this.#patternGenerator.next()
+
+		if (firstResult.done || secondResult.done) {
+			throw new Error('Pattern generator must yield at least 2 patterns')
+		}
+
+		this.#currentPattern = firstResult.value
+		this.#nextPattern = secondResult.value
+
+		// 初期状態は遷移パターン (0-1) から開始
+		this.#currentPattern = interpolateMovePattens(
+			firstResult.value,
+			secondResult.value
+		)
 
 		this.#updateTexture()
 	}
@@ -102,28 +117,21 @@ export class TileMap {
 			})
 		}
 
-		if (!this.#patternGenerator) return
+		if (!this.#patternGenerator || !this.#nextPattern) return
 
 		// 常にトランジション: currentStep → currentStep+1
-		const currentPatternIndex = this.#currentStep
-		const nextPatternIndex = this.#currentStep + 1
+		const nextPattern = this.#patternGenerator.next()
 
-		const pattern1 = this.#patternGenerator(currentPatternIndex)
-		const pattern2 = this.#patternGenerator(nextPatternIndex)
-
-		// Validate dimensions
-		if (
-			pattern1.width !== this.width ||
-			pattern1.height !== this.height ||
-			pattern2.width !== this.width ||
-			pattern2.height !== this.height
-		) {
-			console.error(`Pattern dimensions mismatch at step ${this.#currentStep}`)
+		if (nextPattern.done) {
 			return
 		}
 
-		this.#currentPattern = interpolateMovePattens(pattern1, pattern2)
-		this.#currentStep++
+		this.#currentPattern = interpolateMovePattens(
+			this.#nextPattern,
+			nextPattern.value
+		)
+
+		this.#nextPattern = nextPattern.value
 
 		this.#updateTexture()
 	}
