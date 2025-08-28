@@ -1,5 +1,3 @@
-import type Regl from 'regl'
-
 // アニメーションのタイル素材の種類
 export enum Tile {
 	None = 0,
@@ -105,60 +103,5 @@ export function uint8ToTileDisplay(value: number): TileDisplay {
 	return {
 		tile: value & 0x0f, // Lower 4 bits
 		rotation: (value >> 4) & 0x03, // Bits 4-5
-	}
-}
-
-export class TileMap {
-	constructor(
-		readonly regl: Regl.Regl,
-		readonly width: number,
-		readonly height: number
-	) {
-		this.#data = new Uint8Array(this.width * this.height)
-
-		this.#texture = this.regl.texture({
-			width: this.width,
-			height: this.height,
-			format: 'luminance',
-			type: 'uint8',
-			mag: 'nearest',
-			min: 'nearest',
-			wrap: 'repeat',
-		})
-	}
-
-	#data: Uint8Array
-	#texture: Regl.Texture2D
-
-	get texture(): Regl.Texture2D {
-		return this.#texture
-	}
-
-	setMovePattern(pattern: MovePattern) {
-		for (let y = 0; y < pattern.length; y++) {
-			const row = pattern[y]
-			if (!row) continue
-			for (let x = 0; x < row.length; x++) {
-				const move = row[x]
-
-				if (move) {
-					const tileDisplay = moveToTileDisplay(move)
-					const index = y * this.width + x
-					this.#data[index] = tileDisplayToUint8(tileDisplay)
-				}
-			}
-		}
-
-		this.#updateTexture()
-	}
-
-	// テクスチャを更新（GPUに送信）
-	#updateTexture() {
-		this.#texture.subimage(this.#data)
-	}
-
-	// 破棄
-	destroy() {
-		this.#texture.destroy()
 	}
 }
