@@ -7,6 +7,7 @@ uniform vec2 tileMapSize;
 
 uniform sampler2D video0;
 uniform sampler2D video1;
+uniform sampler2D video2;
 
 uniform mat3 navMatrix;
 
@@ -90,8 +91,10 @@ vec4 drawTileAt(vec2 tileCoord, vec2 uv) {
     // For now, use the single video texture
    if (videoIndex == 0) {
         return tile(uv, video0, tileIndex, rotation);
-   } else {
+   } else if (videoIndex == 1) {
         return tile(uv, video1, tileIndex, rotation);
+   } else {
+        return tile(uv, video2, tileIndex, rotation);
    }
 }
 
@@ -105,10 +108,10 @@ vec4 drawOverlappingTiles(vec2 coord) {
     
     // Neighboring tiles with proper UV offsets for 0.5 overlap
     // UV coordinates need to be shifted to show the overlapping portion
-    vec4 up = drawTileAt(tileCoord + vec2(0.0, -1.0), uv + vec2(0.0, -1.0));
-    vec4 down = drawTileAt(tileCoord + vec2(0.0, 1.0), uv - vec2(0.0, -1.0));
-    vec4 left = drawTileAt(tileCoord + vec2(-1.0, 0.0), uv + vec2(-1.0, 0.0));
-    vec4 right = drawTileAt(tileCoord + vec2(1.0, 0.0), uv - vec2(-1.0, 0.0));
+    vec4 up = drawTileAt(tileCoord + vec2(0.0, 1.0), uv + vec2(0.0, -1.0));
+    vec4 down = drawTileAt(tileCoord + vec2(0.0, -1.0), uv - vec2(0.0, -1.0));
+    vec4 left = drawTileAt(tileCoord + vec2(1.0, 0.0), uv + vec2(-1.0, 0.0));
+    vec4 right = drawTileAt(tileCoord + vec2(-1.0, 0.0), uv - vec2(-1.0, 0.0));
     
     // Only include tiles where UV is in valid overlap range
     vec4 result = center;
@@ -136,8 +139,11 @@ void main() {
     gl_FragColor = drawOverlappingTiles(coord);
 
     // Draw a grid
-    // float gridY = dot(step(fract(coord), vec2(0.005)), vec2(1.0));
-    // gl_FragColor = mix(gl_FragColor, vec4(1.0, 0.0, 0.0, 1.0), gridY);
+    // float grid = dot(step(fract(coord), vec2(0.02)), vec2(1.0));
+    // gl_FragColor = mix(gl_FragColor, vec4(1.0, 0.0, 0.0, 1.0), grid);
+
+    // float gridTile = dot(step(fract(coord / tileMapSize), vec2(0.02)), vec2(1.0));
+    // gl_FragColor = mix(gl_FragColor, vec4(0.0, 0.0, 1.0, 1.0), gridTile);
 
     // gl_FragColor.rgb *= step(0.1, length(coord));
 }
