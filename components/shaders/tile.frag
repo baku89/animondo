@@ -5,6 +5,7 @@ uniform sampler2D video;
 uniform sampler2D tileMap;
 uniform vec2 tileMapSize;
 
+#define TILE_NONE  0
 #define TILE_BIRTH 1
 #define TILE_UP    2
 #define TILE_RIGHT 3
@@ -13,16 +14,17 @@ uniform vec2 tileMapSize;
 #define TILE_DEATH 6
 
 // Unpack tile data from TileMap texture
-// Returns: x = tile index, y = rotation
-ivec2 unpackTileData(vec2 tileCoord) {
+// Returns: x = tile index, y = rotation, z = video index
+ivec3 unpackTileData(vec2 tileCoord) {
     // Sample the packed data from tile map
     float packedValue = texture2D(tileMap, tileCoord / tileMapSize).r * 255.0;
     
-    // Unpack: tile (lower 4 bits), rotation (bits 4-5)
-    int tileIndex = int(mod(packedValue, 16.0));
-    int rotation = int(floor(packedValue / 16.0));
+    // Unpack: tile (bits 0-2), rotation (bits 3-4), videoIndex (bits 5-7)
+    int tileIndex = int(mod(packedValue, 8.0));
+    int rotation = int(mod(floor(packedValue / 8.0), 4.0));
+    int videoIndex = int(floor(packedValue / 32.0));
     
-    return ivec2(tileIndex, rotation);
+    return ivec3(tileIndex, rotation, videoIndex);
 }
 
 vec2 rotateUV(vec2 uv, int rotation) {
@@ -64,17 +66,20 @@ vec4 tile(vec2 uv, sampler2D texture, int index, int rotation) {
 
 // Draw a single tile at given tile coordinate with UV offset
 vec4 drawTileAt(vec2 tileCoord, vec2 uv) {
+
     // Get tile data from TileMap
-    ivec2 tileData = unpackTileData(tileCoord);
+    ivec3 tileData = unpackTileData(tileCoord);
     int tileIndex = tileData.x;
     int rotation = tileData.y;
+    int videoIndex = tileData.z;
     
     // Skip empty tiles
-    if (tileIndex == 0) {
-        return vec4(0.0, 0.0, 0.0, 0.0);
+    if (tileIndex == TILE_NONE) {
+        return vec4(0.0);
     }
     
-    // Sample video texture with tile and rotation
+    // TODO: Use videoIndex to select from video array
+    // For now, use the single video texture
     return tile(uv, video, tileIndex, rotation);
 }
 
@@ -105,7 +110,6 @@ vec4 drawOverlappingTiles(vec2 coord) {
     return result;
 }
 
-
 void main() {
     // Convert to tile coordinates
     vec2 coord =
@@ -114,9 +118,7 @@ void main() {
         * 4.0;
 
     // Draw overlapping tiles
-    vec4 videoColor = drawOverlappingTiles(coord);
-    
-    gl_FragColor = videoColor;
+    gl_FragColor = drawOverlappingTiles(coord);
 
     // Draw a grid
     // float gridY = dot(step(fract(coord), vec2(0.005)), vec2(1.0));

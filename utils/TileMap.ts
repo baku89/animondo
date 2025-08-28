@@ -1,6 +1,9 @@
 import type Regl from 'regl'
 import {moveToTileDisplay, tileDisplayToUint8, type MovePattern} from './tile'
 
+/**
+ * タイルの状態や、シェーダー用のマップテクスチャを管理する
+ */
 export class TileMap {
 	#data: Uint8Array
 	#texture: Regl.Texture2D
@@ -37,10 +40,15 @@ export class TileMap {
 				if (move) {
 					const tileDisplay = moveToTileDisplay(move)
 					const index = y * this.width + x
-					this.#data[index] = tileDisplayToUint8(tileDisplay)
+					const uint8 = tileDisplayToUint8(tileDisplay)
+					this.#data[index] = uint8
+
+					console.log(uint8.toString(2).padStart(8, '0'), tileDisplay)
 				}
 			}
 		}
+
+		this.updateTexture()
 	}
 
 	// テクスチャを更新（GPUに送信）
