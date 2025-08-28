@@ -19,7 +19,8 @@ const canvas = useTemplateRef('canvas')
 // Define uniforms interface
 interface Uniforms {
 	resolution: Regl.Vec2
-	video: Regl.Texture2D
+	video0: Regl.Texture2D
+	video1: Regl.Texture2D
 	tileMap: Regl.Texture2D
 	tileMapSize: Regl.Vec2
 }
@@ -76,17 +77,19 @@ useRegl<Uniforms>(canvas, {
 			resolution(context: Regl.DefaultContext) {
 				return [context.viewportWidth, context.viewportHeight]
 			},
-			video: regl.prop<Uniforms, 'video'>('video'),
+			video0: regl.prop<Uniforms, 'video0'>('video0'),
+			video1: regl.prop<Uniforms, 'video1'>('video1'),
 			tileMap: tileMap.texture,
 			tileMapSize: [tileMap.width, tileMap.height],
 		}
 	},
 	onFrame() {
-		const video = videoTextureArray?.textureArray.value[0]
+		const video0 = videoTextureArray?.textureArray.value[0]
+		const video1 = videoTextureArray?.textureArray.value[1]
 
-		if (!video) return null
+		if (!video0 || !video1) return null
 
-		return {video}
+		return {video0, video1}
 	},
 })
 </script>

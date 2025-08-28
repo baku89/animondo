@@ -1,9 +1,12 @@
 precision mediump float;
 
 uniform vec2 resolution;
-uniform sampler2D video;
+
 uniform sampler2D tileMap;
 uniform vec2 tileMapSize;
+
+uniform sampler2D video0;
+uniform sampler2D video1;
 
 #define TILE_NONE  0
 #define TILE_BIRTH 1
@@ -80,7 +83,11 @@ vec4 drawTileAt(vec2 tileCoord, vec2 uv) {
     
     // TODO: Use videoIndex to select from video array
     // For now, use the single video texture
-    return tile(uv, video, tileIndex, rotation);
+   if (videoIndex == 0) {
+        return tile(uv, video0, tileIndex, rotation);
+   } else {
+        return tile(uv, video1, tileIndex, rotation);
+   }
 }
 
 // Draw overlapping tiles (current + 4 neighbors) and multiply them
