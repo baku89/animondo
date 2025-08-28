@@ -90,36 +90,39 @@ useRegl<Uniforms>(canvas, {
 
 		// パターンジェネレーター関数（パターンインデックスを受け取る）
 		tileMap.setMovePattern(step => {
-			if (step === 0) {
-				return new MovePattern({
-					...Patterns.size,
-					initialize: (x, y) => {
-						return {in: Direction.None, out: Direction.Right}
-					},
-				})
+			// return c
+
+			if (step <= Patterns.size.width / 2) {
+				return Patterns.radialMask(Patterns.clockwise, step)
 			}
 
-			const index = Math.floor(step / 2) % 4
+			return Patterns.down
 
-			let pattern!: MovePattern
+			// return Patterns.clockwise
 
-			if (index === 0) {
-				pattern = Patterns.upDown
-			}
-
-			if (index === 1) {
-				pattern = invertMovePattern(Patterns.upDown)
-			}
-
-			if (index === 2) {
-				pattern = Patterns.leftRight
-			}
-
-			if (index === 3) {
-				pattern = invertMovePattern(Patterns.leftRight)
-			}
-
-			return pattern
+			// if (step === 0) {
+			// 	return new MovePattern({
+			// 		...Patterns.size,
+			// 		initialize: (x, y) => {
+			// 			return {in: Direction.None, out: Direction.Right}
+			// 		},
+			// 	})
+			// }
+			// const index = Math.floor(step / 2) % 4
+			// let pattern!: MovePattern
+			// if (index === 0) {
+			// 	pattern = Patterns.upDown
+			// }
+			// if (index === 1) {
+			// 	pattern = invertMovePattern(Patterns.upDown)
+			// }
+			// if (index === 2) {
+			// 	pattern = Patterns.leftRight
+			// }
+			// if (index === 3) {
+			// 	pattern = invertMovePattern(Patterns.leftRight)
+			// }
+			// return pattern
 		})
 
 		// Start the timer

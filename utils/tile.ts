@@ -33,6 +33,7 @@ export type TileDisplay = {
 // いずれもNoneの場合は、何も表示しない。
 export type Move = {in: Direction; out: Direction}
 
+// パターンを表すクラス
 export class MovePattern extends Array2D<Move> {}
 
 // moveToTileDisplayのルックアップテーブル [inDir][outDir] -> TileDisplay
@@ -99,10 +100,11 @@ export function moveToTileDisplay(move: Move, index: number = 0): TileDisplay {
 	}
 }
 
-// TileDisplayをUint8に変換（パックド形式）
-// Format: tile (3 bits) + rotation (2 bits) + index (3 bits) = 8 bits total
-// tile: bits 0-2 (8種類), rotation: bits 3-4 (4種類), index: bits 5-7 (8種類)
-// Note: indexは0-9が必要だが、3bitでは8種類まで。8-9は0-1にマップされる
+// TileDisplayをUint8に変換
+// Tile: 3bit (6種類)
+// Rotation: 2bit (4種類)
+// Index: 3bit (10種類)
+// III | RR | TTT
 export function tileDisplayToUint8(tileDisplay: TileDisplay): number {
 	return (
 		(tileDisplay.tile & 0b111) |
@@ -111,7 +113,7 @@ export function tileDisplayToUint8(tileDisplay: TileDisplay): number {
 	)
 }
 
-// Uint8からTileDisplayに変換（アンパック）
+// Uint8からTileDisplayに変換
 export function uint8ToTileDisplay(value: number): TileDisplay {
 	return {
 		tile: value & 0b111, // Bits 0-2
@@ -141,8 +143,8 @@ export function interpolateMovePattens(
 	return pattern1.map((x, y, move1) => {
 		const move2 = pattern2.get(x, y)
 		return {
-			in: invertDirection(move1.out),
-			out: invertDirection(move2.in),
+			in: move1.in,
+			out: move2.out,
 		}
 	})
 }

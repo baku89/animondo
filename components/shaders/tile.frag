@@ -82,9 +82,9 @@ vec4 drawTileAt(vec2 tileCoord, vec2 uv) {
     int rotation = tileData.y;
     int videoIndex = tileData.z;
     
-    // Skip empty tiles
+    // Skip empty tiles (white)
     if (tileIndex == TILE_NONE) {
-        return vec4(0.0);
+        return vec4(1.0);
     }
     
     // TODO: Use videoIndex to select from video array

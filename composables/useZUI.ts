@@ -1,8 +1,17 @@
 import {useElementSize, useEventListener} from '@vueuse/core'
 import {mat2d, mat3, vec2} from 'linearly'
 
+import * as Patterns from '@/utils/patterns'
+
 export function useZUI(element: Ref<HTMLElement | null>) {
-	const transform = ref(mat2d.scaling(0.25))
+	const transform = ref(
+		mat2d.mul(
+			mat2d.scaling(4),
+
+			mat2d.translation(-0.5),
+			mat2d.scaling(1 / Patterns.size.width)
+		)
+	)
 
 	const {width} = useElementSize(element)
 

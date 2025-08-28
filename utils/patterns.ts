@@ -1,7 +1,17 @@
 import {vec2} from 'linearly'
-import {Direction, invertDirection, MovePattern} from './tile'
+import {Direction, MovePattern, type Move} from './tile'
 
-export const size = {width: 64, height: 64}
+const _ = Direction.None
+const U = Direction.Up
+const R = Direction.Right
+const D = Direction.Down
+const L = Direction.Left
+
+function move(_in: Direction, out: Direction): Move {
+	return {in: _in, out}
+}
+
+export const size = {width: 16, height: 16}
 
 export const right = new MovePattern({
 	...size,
@@ -10,43 +20,42 @@ export const right = new MovePattern({
 	},
 })
 
-export const circle = new MovePattern({
+export const clockwise = new MovePattern({
 	...size,
 	initialize: (ox, oy) => {
 		const [x, y] = vec2.sub([ox, oy], [size.width / 2, size.height / 2])
 
-		let isLeftBottom: boolean
-		let isRightBottom: boolean
-
-		let out = Direction.None
-
-		isLeftBottom = x < y || (x >= 0 && x === y)
-		isRightBottom = x >= -y || (x >= 0 && x + 1 === -y)
-
-		if (isLeftBottom) {
-			out = isRightBottom ? Direction.Left : Direction.Up
-		} else {
-			out = isRightBottom ? Direction.Down : Direction.Right
-		}
-
-		isLeftBottom = x < y || (x < 0 && x === y)
-		isRightBottom = x >= -y || (x < 0 && x + 1 === -y)
-
-		let _in = Direction.None
-
-		if (isLeftBottom) {
-			_in = isRightBottom ? Direction.Right : Direction.Down
-		} else {
-			_in = isRightBottom ? Direction.Up : Direction.Left
-		}
-
 		if (x === y) {
-			;[_in, out] = [invertDirection(out), invertDirection(_in)]
+			return 0 <= x ? move(U, L) : move(D, R)
+		} else if (x + 1 === -y) {
+			return 0 <= x ? move(L, D) : move(R, U)
 		}
 
-		return {in: _in, out}
+		if (Math.abs(x) <= y) {
+			return move(R, L)
+		} else if (Math.abs(y) <= x) {
+			return move(U, D)
+		}
+
+		if (y > x) {
+			return move(D, U)
+		} else {
+			return move(L, R)
+		}
 	},
 })
+
+export function radialMask(pattern: MovePattern, radius: number) {
+	const origin: vec2 = [size.width / 2 - 0.5, size.height / 2 - 0.5]
+
+	return pattern.map((ox, oy, m) => {
+		const [x, y] = vec2.sub([ox, oy], origin)
+
+		const l1Dist = Math.max(Math.abs(x), Math.abs(y))
+
+		return l1Dist <= radius ? m : move(_, _)
+	})
+}
 
 export const down = new MovePattern({
 	...size,
