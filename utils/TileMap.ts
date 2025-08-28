@@ -1,18 +1,27 @@
 import type Regl from 'regl'
 import {Array2D} from './Array2D'
-import {
-	Direction,
-	interpolateMovePattens,
-	moveToTileDisplay,
-	tileDisplayToUint8,
-	type MovePattern,
-} from './tile'
+import type {MovePattern} from './patterns'
+import {Direction, moveToTileDisplay, tileDisplayToUint8} from './tile'
 
 interface TileMapOptions {
 	regl: Regl.Regl
 	width: number
 	height: number
 	numberOfVideos: number
+}
+
+// 2つのパターンがつながるようなパターンを作る
+function interpolateMovePattens(
+	pattern1: MovePattern,
+	pattern2: MovePattern
+): MovePattern {
+	return pattern1.map((x, y, move1) => {
+		const move2 = pattern2.get(x, y)
+		return {
+			in: move1.in,
+			out: move2.out,
+		}
+	})
 }
 
 /**

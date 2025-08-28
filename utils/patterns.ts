@@ -1,48 +1,61 @@
 import {vec2} from 'linearly'
-import {Direction, invertMovePattern, MovePattern, type Move} from './tile'
+import {Array2D} from './Array2D'
+import {Direction, type Move} from './tile'
 
-const _ = Direction.None
-const U = Direction.Up
-const R = Direction.Right
-const D = Direction.Down
-const L = Direction.Left
+// パターンを表すクラス
+export type MovePattern = Array2D<Move>
+export const MovePattern = Array2D
 
 function move(_in: Direction, out: Direction): Move {
 	return {in: _in, out}
+}
+
+function invertMovePattern(pattern: Array2D<Move>): Array2D<Move> {
+	return pattern.map((x, y, move) => ({
+		in: move.out,
+		out: move.in,
+	}))
 }
 
 export const size = {width: 16, height: 16}
 export const width = size.width
 export const height = size.height
 
-export const clockwise = new MovePattern({
+export const clockwise = new Array2D<Move>({
 	...size,
 	initialize: (ox, oy) => {
 		const [x, y] = vec2.sub([ox, oy], [size.width / 2, size.height / 2])
 
 		if (x === y) {
-			return 0 <= x ? move(U, L) : move(D, R)
+			return 0 <= x
+				? move(Direction.Up, Direction.Left)
+				: move(Direction.Down, Direction.Right)
 		} else if (x + 1 === -y) {
-			return 0 <= x ? move(L, D) : move(R, U)
+			return 0 <= x
+				? move(Direction.Left, Direction.Down)
+				: move(Direction.Right, Direction.Up)
 		}
 
 		if (Math.abs(x) <= y) {
-			return move(R, L)
+			return move(Direction.Right, Direction.Left)
 		} else if (Math.abs(y) <= x) {
-			return move(U, D)
+			return move(Direction.Up, Direction.Down)
 		}
 
 		if (y > x) {
-			return move(D, U)
+			return move(Direction.Down, Direction.Up)
 		} else {
-			return move(L, R)
+			return move(Direction.Left, Direction.Right)
 		}
 	},
 })
 
 export const counterClockwise = invertMovePattern(clockwise)
 
-export function radialMask(pattern: MovePattern, radius: number) {
+export function radialMask(
+	pattern: Array2D<Move>,
+	radius: number
+): Array2D<Move> {
 	const origin: vec2 = [size.width / 2 - 0.5, size.height / 2 - 0.5]
 
 	return pattern.map((ox, oy, m) => {
@@ -50,11 +63,11 @@ export function radialMask(pattern: MovePattern, radius: number) {
 
 		const l1Dist = Math.max(Math.abs(x), Math.abs(y))
 
-		return l1Dist <= radius ? m : move(_, _)
+		return l1Dist <= radius ? m : move(Direction.None, Direction.None)
 	})
 }
 
-export const upDown = new MovePattern({
+export const upDown = new Array2D<Move>({
 	...size,
 	initialize: (x, y) => {
 		if (x % 2 === 0) {
@@ -66,7 +79,7 @@ export const upDown = new MovePattern({
 
 export const downUp = invertMovePattern(upDown)
 
-export const leftRight = new MovePattern({
+export const leftRight = new Array2D<Move>({
 	...size,
 	initialize: (x, y) => {
 		if (y % 2 === 0) {
@@ -78,7 +91,7 @@ export const leftRight = new MovePattern({
 
 export const rightLeft = invertMovePattern(leftRight)
 
-export const down = new MovePattern({
+export const down = new Array2D<Move>({
 	...size,
 	initialize: (x, y) => {
 		return {in: Direction.Up, out: Direction.Down}
@@ -87,7 +100,7 @@ export const down = new MovePattern({
 
 export const up = invertMovePattern(down)
 
-export const right = new MovePattern({
+export const right = new Array2D<Move>({
 	...size,
 	initialize: (x, y) => {
 		return {in: Direction.Left, out: Direction.Right}
@@ -96,7 +109,7 @@ export const right = new MovePattern({
 
 export const left = invertMovePattern(right)
 
-export const empty = new MovePattern({
+export const empty = new Array2D<Move>({
 	...size,
 	initialize: (x, y) => {
 		return {in: Direction.None, out: Direction.None}

@@ -1,5 +1,3 @@
-import {Array2D} from './Array2D'
-
 // アニメーションのタイル素材の種類
 export enum Tile {
 	None = 0,
@@ -32,10 +30,6 @@ export type TileDisplay = {
 // どの向きから入って、度の向きから出ていくか。片方のディレクションがNoneの場合は、BirthかDeath。
 // いずれもNoneの場合は、何も表示しない。
 export type Move = {in: Direction; out: Direction}
-
-// パターンを表すクラス
-export type MovePattern = Array2D<Move>
-export const MovePattern = Array2D
 
 // moveToTileDisplayのルックアップテーブル [inDir][outDir] -> TileDisplay
 // Direction enum: None=0, Up=1, Right=2, Down=3, Left=4
@@ -83,13 +77,6 @@ const TILE_DISPLAY_TABLE: Omit<TileDisplay, 'index'>[][] = [
 	],
 ]
 
-export function invertMovePattern(movePattern: MovePattern) {
-	return movePattern.map((x, y, move) => ({
-		in: move.out,
-		out: move.in,
-	}))
-}
-
 export function moveToTileDisplay(move: Move, index: number = 0): TileDisplay {
 	const baseTileDisplay = TILE_DISPLAY_TABLE[move.in]?.[move.out] ?? {
 		tile: Tile.None,
@@ -134,18 +121,4 @@ export function invertDirection(direction: Direction): Direction {
 				: direction === Direction.Right
 					? Direction.Left
 					: Direction.None
-}
-
-// 2つのパターンがつながるようなパターンを作る
-export function interpolateMovePattens(
-	pattern1: MovePattern,
-	pattern2: MovePattern
-): MovePattern {
-	return pattern1.map((x, y, move1) => {
-		const move2 = pattern2.get(x, y)
-		return {
-			in: move1.in,
-			out: move2.out,
-		}
-	})
 }
