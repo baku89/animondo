@@ -1,5 +1,12 @@
 <template>
 	<main>
+		<button v-if="!hasStarted" @click="startAudio">
+			Tap To Start<br />
+			<div class="small">
+				Osaka EXPO EU-Japan Animation Residency<br />
+				Collaborative Project
+			</div>
+		</button>
 		<canvas ref="canvas" class="canvas" />
 	</main>
 </template>
@@ -12,8 +19,9 @@ import TileFragmentShader from '~/components/shaders/tile.frag?raw'
 import {Direction, MovePattern, invertMovePattern} from '~/utils/tile'
 import {TileMap} from '~/utils/TileMap'
 import {useIntervalFn} from '@vueuse/core'
-import {scalar} from 'linearly'
+import {scalar, vec2} from 'linearly'
 import {useZUI} from '~/composables/useZUI'
+import {invertDirection} from '~/utils/tile'
 
 const canvas = useTemplateRef('canvas')
 
@@ -27,6 +35,28 @@ interface Uniforms {
 	navMatrix: Regl.Mat3
 }
 
+const hasStarted = ref(false)
+
+const audioStarted = Promise.withResolvers<void>()
+
+async function startAudio() {
+	// Play background music
+	const audio = new Audio('/kawachiondo.mp3')
+	audio.loop = true
+	audio.volume = 0.7
+	try {
+		await audio.play()
+	} catch (error) {
+		console.log(
+			'Audio playback failed (probably due to autoplay policy):',
+			error
+		)
+	}
+
+	hasStarted.value = true
+	audioStarted.resolve()
+}
+
 let videoTextureArray: ReturnType<typeof useVideoTextureArray> | null = null
 let tileMap: TileMap | null = null
 
@@ -34,6 +64,46 @@ let tileMap: TileMap | null = null
 const zui = useZUI(canvas)
 
 const tileSize = {width: 4, height: 4}
+
+const patternCircle = new MovePattern({
+	...tileSize,
+	initialize: (ox, oy) => {
+		const [x, y] = vec2.sub([ox, oy], [tileSize.width / 2, tileSize.height / 2])
+
+		let isLeftBottom: boolean
+		let isRightBottom: boolean
+
+		let out = Direction.None
+
+		isLeftBottom = x < y || (x >= 0 && x === y)
+		isRightBottom = x >= -y || (x >= 0 && x + 1 === -y)
+
+		if (isLeftBottom) {
+			out = isRightBottom ? Direction.Left : Direction.Up
+		} else {
+			out = isRightBottom ? Direction.Down : Direction.Right
+		}
+
+		isLeftBottom = x < y || (x < 0 && x === y)
+		isRightBottom = x >= -y || (x < 0 && x + 1 === -y)
+
+		let _in = Direction.None
+
+		if (isLeftBottom) {
+			_in = isRightBottom ? Direction.Right : Direction.Down
+		} else {
+			_in = isRightBottom ? Direction.Up : Direction.Left
+		}
+
+		console.log([ox, oy], [x, y], _in, out)
+
+		if (x === y) {
+			;[_in, out] = [invertDirection(out), invertDirection(_in)]
+		}
+
+		return {in: _in, out}
+	},
+})
 
 const patternUpDown = new MovePattern({
 	...tileSize,
@@ -73,21 +143,27 @@ useRegl<Uniforms>(canvas, {
 		tileMap = new TileMap(regl, tileSize.width, tileSize.height)
 		// パターンジェネレーター関数（パターンインデックスを受け取る）
 		tileMap.setMovePattern(step => {
-			const index = Math.floor(step) % 4
+			const index = Math.floor(step / 2) % 4
+
+			let pattern!: MovePattern
 
 			if (index === 0) {
-				return patternUpDown
+				pattern = patternUpDown
 			}
 
 			if (index === 1) {
-				return invertMovePattern(patternUpDown)
+				pattern = invertMovePattern(patternUpDown)
 			}
 
 			if (index === 2) {
-				return patternLeftRight
+				pattern = patternLeftRight
 			}
 
-			return invertMovePattern(patternLeftRight)
+			if (index === 3) {
+				pattern = invertMovePattern(patternLeftRight)
+			}
+
+			return pattern
 		})
 
 		// Start the timer
@@ -101,7 +177,10 @@ useRegl<Uniforms>(canvas, {
 			}
 			currentFrame = scalar.mod(currentFrame + 1, 8)
 			videoTextureArray?.setFrame(currentFrame)
-		}, 1000 / 10)
+		}, 1000 / 11)
+
+		// Wait for audio to start
+		await audioStarted.promise
 
 		return {
 			resolution(context: Regl.DefaultContext) {
@@ -127,9 +206,48 @@ useRegl<Uniforms>(canvas, {
 		}
 	},
 })
+
+useSeoMeta({
+	title: 'Kawachi Ondo',
+})
 </script>
 
 <style lang="stylus">
+main
+	display flex
+	flex-direction column
+	align-items center
+	justify-content center
+	position absolute
+	top 0
+	left 0
+	width 100vw
+	height 100svh
+
+button
+	border none
+	color black
+	font-size 2rem
+	cursor pointer
+	border 2px solid black
+	border-radius 1rem
+	padding 1rem
+	z-index 10
+	background white
+	line-height 1.5
+
+	.small
+		margin-top 0.5em
+		font-size 0.5em
+		color gray
+
+	&:hover
+		background black
+		color white
+
+		.small
+			color white
+
 
 .canvas
 	position fixed

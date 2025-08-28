@@ -120,6 +120,8 @@ vec4 drawOverlappingTiles(vec2 coord) {
     result *= right;
     
     return result;
+
+    // return mix(result, vec4(tileCoord / tileMapSize, 0.0, 1.0), 0.5);
 }
 
 void main() {
@@ -136,4 +138,6 @@ void main() {
     // Draw a grid
     // float gridY = dot(step(fract(coord), vec2(0.005)), vec2(1.0));
     // gl_FragColor = mix(gl_FragColor, vec4(1.0, 0.0, 0.0, 1.0), gridY);
+
+    // gl_FragColor.rgb *= step(0.1, length(coord));
 }
