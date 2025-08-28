@@ -119,3 +119,30 @@ export function uint8ToTileDisplay(value: number): TileDisplay {
 		index: (value >> 5) & 0b111, // Bits 5-7
 	}
 }
+
+// 方向を反転させる
+export function invertDirection(direction: Direction): Direction {
+	return direction === Direction.Up
+		? Direction.Down
+		: direction === Direction.Down
+			? Direction.Up
+			: direction === Direction.Left
+				? Direction.Right
+				: direction === Direction.Right
+					? Direction.Left
+					: Direction.None
+}
+
+// 2つのパターンがつながるようなパターンを作る
+export function interpolateMovePattens(
+	pattern1: MovePattern,
+	pattern2: MovePattern
+): MovePattern {
+	return pattern1.map((x, y, move1) => {
+		const move2 = pattern2.get(x, y)
+		return {
+			in: invertDirection(move1.out),
+			out: invertDirection(move2.in),
+		}
+	})
+}
