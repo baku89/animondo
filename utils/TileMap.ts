@@ -25,7 +25,9 @@ export class TileMap {
 		readonly height: number
 	) {
 		this.#data = new Uint8Array(this.width * this.height)
-		this.#indices = new Array2D(this.width, this.height, {
+		this.#indices = new Array2D({
+			width: this.width,
+			height: this.height,
 			initialize: (x, y) => (x + y) % 2,
 		})
 

@@ -29,7 +29,7 @@ interface Uniforms {
 let videoTextureArray: ReturnType<typeof useVideoTextureArray> | null = null
 let tileMap: TileMap | null = null
 
-const sampleMovePattern = new MovePattern(2, 2, {
+const sampleMovePattern = new MovePattern({
 	array: [
 		[
 			{in: Direction.Right, out: Direction.Up},
