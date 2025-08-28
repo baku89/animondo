@@ -63,8 +63,11 @@ vec4 tile(vec2 uv, sampler2D texture, int index, int rotation) {
     uv = rotateUV(uv, rotation);
     // Scale UV
     uv = mix(vec2(0.25), vec2(0.75), uv);
-    // Clamp UV to 0-1 range
-    uv = clamp(uv, vec2(0.0), vec2(1.0));
+
+    // If the UV is out of range, return white
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+        return vec4(1.0);
+    }
 
     return texture2D(texture, (uv + offset) / vec2(3.0, 2.0));
 }
