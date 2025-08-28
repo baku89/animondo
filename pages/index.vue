@@ -16,10 +16,10 @@ import type Regl from 'regl'
 import {useRegl} from '~/composables/useRegl'
 import {useVideoTextureArray} from '~/composables/useVideoTextureArray'
 import TileFragmentShader from '~/components/shaders/tile.frag?raw'
-import {Direction, MovePattern, invertMovePattern} from '~/utils/tile'
+import {MovePattern} from '~/utils/tile'
 import {TileMap} from '~/utils/TileMap'
 import {useIntervalFn} from '@vueuse/core'
-import {scalar, vec2} from 'linearly'
+import {scalar} from 'linearly'
 import {useZUI} from '~/composables/useZUI'
 import * as Patterns from '~/utils/patterns'
 
@@ -90,9 +90,9 @@ useRegl<Uniforms>(canvas, {
 
 		// パターンジェネレーター関数（常にcを返す）
 		tileMap.setMovePattern(function* (): Generator<MovePattern, never, void> {
-			yield Patterns.empty
-			yield Patterns.empty
-			yield Patterns.empty
+			// yield Patterns.empty
+			// yield Patterns.empty
+			// yield Patterns.empty
 			// だんだん広がる
 			for (let i = 0; i < Patterns.size.width / 2; i++) {
 				yield Patterns.radialMask(Patterns.clockwise, i)
