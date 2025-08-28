@@ -8,6 +8,8 @@ uniform vec2 tileMapSize;
 uniform sampler2D video0;
 uniform sampler2D video1;
 
+uniform mat3 navMatrix;
+
 #define TILE_NONE  0
 #define TILE_BIRTH 1
 #define TILE_UP    2
@@ -118,11 +120,12 @@ vec4 drawOverlappingTiles(vec2 coord) {
 }
 
 void main() {
-    // Convert to tile coordinates
-    vec2 coord =
-        (gl_FragCoord.xy / resolution - 0.5)
-        * vec2(1.0, -resolution.y / resolution.x)
-        * 4.0;
+    // Convert to normalized coordinates
+    vec2 aspect = vec2(1.0, resolution.y / resolution.x); 
+    vec2 normCoord = (gl_FragCoord.xy / resolution - 0.5) * aspect * 2.0;
+    
+    // Apply navigation transformation
+    vec2 coord = (navMatrix * vec3(normCoord, 1.0)).xy;
 
     // Draw overlapping tiles
     gl_FragColor = drawOverlappingTiles(coord);

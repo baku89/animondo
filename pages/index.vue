@@ -13,6 +13,7 @@ import {Direction, MovePattern} from '~/utils/tile'
 import {TileMap} from '~/utils/TileMap'
 import {useIntervalFn} from '@vueuse/core'
 import {scalar} from 'linearly'
+import {useZUI} from '~/composables/useZUI'
 
 const canvas = useTemplateRef('canvas')
 
@@ -23,10 +24,14 @@ interface Uniforms {
 	video1: Regl.Texture2D
 	tileMap: Regl.Texture2D
 	tileMapSize: Regl.Vec2
+	navMatrix: Regl.Mat3
 }
 
 let videoTextureArray: ReturnType<typeof useVideoTextureArray> | null = null
 let tileMap: TileMap | null = null
+
+// Initialize ZUI for navigation
+const zui = useZUI(canvas)
 
 // const sampleMovePattern = new MovePattern({
 // 	array: [
@@ -93,16 +98,20 @@ useRegl<Uniforms>(canvas, {
 			video1: regl.prop<Uniforms, 'video1'>('video1'),
 			tileMap: regl.prop<Uniforms, 'tileMap'>('tileMap'),
 			tileMapSize: [tileMap.width, tileMap.height],
+			navMatrix: regl.prop<Uniforms, 'navMatrix'>('navMatrix'),
 		}
 	},
-	onFrame(context) {
-		console.log('onFrame', context.time)
-
+	onFrame() {
 		const [video0, video1] = videoTextureArray?.textureArray.value ?? []
 
 		if (!video0 || !video1 || !tileMap) return null
 
-		return {video0, video1, tileMap: tileMap.texture}
+		return {
+			video0,
+			video1,
+			tileMap: tileMap.texture,
+			navMatrix: zui.inverseMatrix.value,
+		}
 	},
 })
 </script>
