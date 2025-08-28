@@ -9,7 +9,7 @@ import type Regl from 'regl'
 import {useRegl} from '~/composables/useRegl'
 import {useVideoTextureArray} from '~/composables/useVideoTextureArray'
 import TileFragmentShader from '~/components/shaders/tile.frag?raw'
-import {Direction, MovePattern} from '~/utils/tile'
+import {Direction, MovePattern, invertMovePattern} from '~/utils/tile'
 import {TileMap} from '~/utils/TileMap'
 import {useIntervalFn} from '@vueuse/core'
 import {scalar} from 'linearly'
@@ -33,40 +33,25 @@ let tileMap: TileMap | null = null
 // Initialize ZUI for navigation
 const zui = useZUI(canvas)
 
-// const sampleMovePattern = new MovePattern({
-// 	array: [
-// 		[
-// 			{in: Direction.Right, out: Direction.Up},
-// 			{in: Direction.Up, out: Direction.Left},
-// 		],
-// 		[
-// 			{in: Direction.Down, out: Direction.Right},
-// 			{in: Direction.Left, out: Direction.Down},
-// 		],
-// 	],
-// })
+const tileSize = {width: 4, height: 4}
 
-// const sampleMovePattern = new MovePattern({
-// 	array: [
-// 		[
-// 			{in: Direction.None, out: Direction.Down},
-// 			{in: Direction.Down, out: Direction.None},
-// 		],
-// 		[
-// 			{in: Direction.Up, out: Direction.Right},
-// 			{in: Direction.Left, out: Direction.Up},
-// 		],
-// 	],
-// })
-
-const sampleMovePattern = new MovePattern({
-	width: 4,
-	height: 4,
+const patternUpDown = new MovePattern({
+	...tileSize,
 	initialize: (x, y) => {
 		if (x % 2 === 0) {
 			return {in: Direction.Down, out: Direction.Up}
 		}
 		return {in: Direction.Up, out: Direction.Down}
+	},
+})
+
+const patternLeftRight = new MovePattern({
+	...tileSize,
+	initialize: (x, y) => {
+		if (y % 2 === 0) {
+			return {in: Direction.Right, out: Direction.Left}
+		}
+		return {in: Direction.Left, out: Direction.Right}
 	},
 })
 
@@ -85,12 +70,25 @@ useRegl<Uniforms>(canvas, {
 		await videoTextureArray.load()
 
 		// Initialize tile map
-		tileMap = new TileMap(
-			regl,
-			sampleMovePattern.width,
-			sampleMovePattern.height
-		)
-		tileMap.setMovePattern(() => sampleMovePattern)
+		tileMap = new TileMap(regl, tileSize.width, tileSize.height)
+		// パターンジェネレーター関数（パターンインデックスを受け取る）
+		tileMap.setMovePattern(step => {
+			const index = Math.floor(step) % 4
+
+			if (index === 0) {
+				return patternUpDown
+			}
+
+			if (index === 1) {
+				return invertMovePattern(patternUpDown)
+			}
+
+			if (index === 2) {
+				return patternLeftRight
+			}
+
+			return invertMovePattern(patternLeftRight)
+		})
 
 		// Start the timer
 		useIntervalFn(() => {

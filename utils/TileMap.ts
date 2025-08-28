@@ -2,6 +2,7 @@ import type Regl from 'regl'
 import {Array2D} from './Array2D'
 import {
 	Direction,
+	interpolateMovePattens,
 	moveToTileDisplay,
 	tileDisplayToUint8,
 	type MovePattern,
@@ -14,8 +15,8 @@ export class TileMap {
 	#data: Uint8Array
 	#texture: Regl.Texture2D
 
-	#patternGenerator: ((loop: number) => MovePattern) | null = null
-	#currentLoop: number = 0
+	#patternGenerator: ((step: number) => MovePattern) | null = null
+	#currentStep: number = 0
 	#currentPattern: MovePattern | null = null
 
 	/** 各タイルのビデオインデックス */
@@ -48,57 +49,67 @@ export class TileMap {
 		return this.#texture
 	}
 
-	setMovePattern(patternGenerator: (loop: number) => MovePattern) {
+	setMovePattern(patternGenerator: (step: number) => MovePattern) {
 		this.#patternGenerator = patternGenerator
-		this.#currentLoop = 0
-		this.#currentPattern = this.#patternGenerator(this.#currentLoop)
+		this.#currentStep = 0
+
+		// 初期状態も遷移パターン (0-1) から開始
+		this.#currentPattern = this.#patternGenerator(0)
+
 		this.#updateTexture()
 	}
 
 	/**
 	 * タイル上のビデオインデックスを更新する
+	 * ステップ: 0-1, 1-2, 2-3, 3-4, ...
 	 */
 	nextStep() {
 		if (!this.#patternGenerator) return
 
-		// Advance to next loop and get pattern
-		const pattern = this.#patternGenerator(++this.#currentLoop)
-		this.#currentPattern = pattern
+		// 常にトランジション: currentStep → currentStep+1
+		const currentPatternIndex = this.#currentStep
+		const nextPatternIndex = this.#currentStep + 1
 
-		// Validate pattern dimensions
-		if (pattern.width !== this.width || pattern.height !== this.height) {
-			console.error(
-				`Pattern dimensions (${pattern.width}x${pattern.height}) ` +
-					`do not match TileMap dimensions (${this.width}x${this.height}) at loop ${this.#currentLoop}`
-			)
+		const pattern1 = this.#patternGenerator(currentPatternIndex)
+		const pattern2 = this.#patternGenerator(nextPatternIndex)
+
+		// Validate dimensions
+		if (
+			pattern1.width !== this.width ||
+			pattern1.height !== this.height ||
+			pattern2.width !== this.width ||
+			pattern2.height !== this.height
+		) {
+			console.error(`Pattern dimensions mismatch at step ${this.#currentStep}`)
 			return
 		}
 
-		const indices = this.#indices
+		this.#currentPattern = interpolateMovePattens(pattern1, pattern2)
+		this.#currentStep++
 
-		// const nextIndices = new Array2D(this.width, this.height, (x, y) => {
-		// 	if (this.#indices.get(x - 1, y) ===
-		// })
-		this.#indices = this.#indices.map((x, y) => {
+		// Update indices based on current pattern
+		this.#indices = this.#indices.map((x, y, _, indices) => {
+			if (!this.#currentPattern) return 0
+
 			// Check left
-			if (pattern.get(x - 1, y).out === Direction.Right) {
+			if (this.#currentPattern.get(x - 1, y).out === Direction.Right) {
 				return indices.get(x - 1, y)
 			}
 			// Check Up
-			if (pattern.get(x, y - 1).out === Direction.Down) {
+			if (this.#currentPattern.get(x, y - 1).out === Direction.Down) {
 				return indices.get(x, y - 1)
 			}
 			// Check Right
-			if (pattern.get(x + 1, y).out === Direction.Left) {
+			if (this.#currentPattern.get(x + 1, y).out === Direction.Left) {
 				return indices.get(x + 1, y)
 			}
 			// Check Down
-			if (pattern.get(x, y + 1).out === Direction.Up) {
+			if (this.#currentPattern.get(x, y + 1).out === Direction.Up) {
 				return indices.get(x, y + 1)
 			}
 
-			// どこからも流入していないときはランダムに
-			return Math.round(Math.random())
+			// どこからも流入していないときは0
+			return 0
 		})
 
 		this.#updateTexture()
