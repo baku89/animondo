@@ -13,7 +13,6 @@ import {Direction, MovePattern} from '~/utils/tile'
 import {TileMap} from '~/utils/TileMap'
 import {useIntervalFn} from '@vueuse/core'
 import {scalar} from 'linearly'
-import {Array2D} from '~/utils/Array2D'
 
 const canvas = useTemplateRef('canvas')
 
@@ -29,11 +28,24 @@ interface Uniforms {
 let videoTextureArray: ReturnType<typeof useVideoTextureArray> | null = null
 let tileMap: TileMap | null = null
 
+// const sampleMovePattern = new MovePattern({
+// 	array: [
+// 		[
+// 			{in: Direction.Right, out: Direction.Up},
+// 			{in: Direction.Up, out: Direction.Left},
+// 		],
+// 		[
+// 			{in: Direction.Down, out: Direction.Right},
+// 			{in: Direction.Left, out: Direction.Down},
+// 		],
+// 	],
+// })
+
 const sampleMovePattern = new MovePattern({
 	array: [
 		[
-			{in: Direction.Right, out: Direction.Up},
-			{in: Direction.Up, out: Direction.Left},
+			{in: Direction.None, out: Direction.Up},
+			{in: Direction.Up, out: Direction.None},
 		],
 		[
 			{in: Direction.Down, out: Direction.Right},
@@ -62,17 +74,16 @@ useRegl<Uniforms>(canvas, {
 
 		// Start the timer
 		useIntervalFn(() => {
-			currentFrame = scalar.mod(currentFrame + 1, 8)
-			videoTextureArray?.setFrame(currentFrame)
-
-			if (currentFrame === 1) {
+			if (currentFrame === 0) {
 				if (isFirstLoop) {
 					isFirstLoop = false
 				} else {
 					tileMap?.nextStep()
 				}
 			}
-		}, 1000 / 12)
+			currentFrame = scalar.mod(currentFrame + 1, 8)
+			videoTextureArray?.setFrame(currentFrame)
+		}, 1000 / 9)
 
 		return {
 			resolution(context: Regl.DefaultContext) {

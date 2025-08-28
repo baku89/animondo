@@ -82,8 +82,8 @@ export class TileMap {
 				return indices.get(x, y + 1)
 			}
 
-			// どこからも流入していないときは0で埋める
-			return 0
+			// どこからも流入していないときはランダムに
+			return Math.round(Math.random())
 		})
 
 		this.#updateTexture()
