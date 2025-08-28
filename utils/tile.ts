@@ -1,3 +1,5 @@
+import {Array2D} from './Array2D'
+
 // アニメーションのタイル素材の種類
 export enum Tile {
 	None = 0,
@@ -31,7 +33,7 @@ export type TileDisplay = {
 // いずれもNoneの場合は、何も表示しない。
 export type Move = {in: Direction; out: Direction}
 
-export type MovePattern = Move[][]
+export class MovePattern extends Array2D<Move> {}
 
 // moveToTileDisplayのルックアップテーブル [inDir][outDir] -> TileDisplay
 // Direction enum: None=0, Up=1, Right=2, Down=3, Left=4
@@ -80,12 +82,10 @@ const TILE_DISPLAY_TABLE: Omit<TileDisplay, 'index'>[][] = [
 ]
 
 export function invertMovePattern(movePattern: MovePattern) {
-	return movePattern.map(row =>
-		row.map(move => ({
-			in: move.out,
-			out: move.in,
-		}))
-	)
+	return movePattern.map((x, y, move) => ({
+		in: move.out,
+		out: move.in,
+	}))
 }
 
 export function moveToTileDisplay(move: Move, index: number = 0): TileDisplay {

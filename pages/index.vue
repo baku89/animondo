@@ -9,10 +9,11 @@ import type Regl from 'regl'
 import {useRegl} from '~/composables/useRegl'
 import {useVideoTextureArray} from '~/composables/useVideoTextureArray'
 import TileFragmentShader from '~/components/shaders/tile.frag?raw'
-import {Direction, type MovePattern} from '~/utils/tile'
+import {Direction, MovePattern} from '~/utils/tile'
 import {TileMap} from '~/utils/TileMap'
 import {useIntervalFn} from '@vueuse/core'
 import {scalar} from 'linearly'
+import {Array2D} from '~/utils/Array2D'
 
 const canvas = useTemplateRef('canvas')
 
@@ -28,28 +29,20 @@ interface Uniforms {
 let videoTextureArray: ReturnType<typeof useVideoTextureArray> | null = null
 let tileMap: TileMap | null = null
 
-// const sampleMovePattern: MovePattern = [
-// 	[
-// 		{in: Direction.Right, out: Direction.Up},
-// 		{in: Direction.Up, out: Direction.Left},
-// 	],
-// 	[
-// 		{in: Direction.Down, out: Direction.Right},
-// 		{in: Direction.Left, out: Direction.Down},
-// 	],
-// ]
-
-const sampleMovePattern: MovePattern = [
-	[
-		{in: Direction.Right, out: Direction.Up},
-		{in: Direction.Up, out: Direction.Left},
+const sampleMovePattern = new MovePattern(2, 2, {
+	array: [
+		[
+			{in: Direction.Right, out: Direction.Up},
+			{in: Direction.Up, out: Direction.Left},
+		],
+		[
+			{in: Direction.Down, out: Direction.Right},
+			{in: Direction.Left, out: Direction.Down},
+		],
 	],
-	[
-		{in: Direction.Down, out: Direction.Right},
-		{in: Direction.Left, out: Direction.Down},
-	],
-]
+})
 
+let isFirstLoop = true
 let currentFrame = 0
 
 // Initialize Regl with fullscreen quad
@@ -71,6 +64,14 @@ useRegl<Uniforms>(canvas, {
 		useIntervalFn(() => {
 			currentFrame = scalar.mod(currentFrame + 1, 8)
 			videoTextureArray?.setFrame(currentFrame)
+
+			if (currentFrame === 1) {
+				if (isFirstLoop) {
+					isFirstLoop = false
+				} else {
+					tileMap?.nextStep()
+				}
+			}
 		}, 1000 / 12)
 
 		return {
@@ -79,17 +80,18 @@ useRegl<Uniforms>(canvas, {
 			},
 			video0: regl.prop<Uniforms, 'video0'>('video0'),
 			video1: regl.prop<Uniforms, 'video1'>('video1'),
-			tileMap: tileMap.texture,
+			tileMap: regl.prop<Uniforms, 'tileMap'>('tileMap'),
 			tileMapSize: [tileMap.width, tileMap.height],
 		}
 	},
-	onFrame() {
-		const video0 = videoTextureArray?.textureArray.value[0]
-		const video1 = videoTextureArray?.textureArray.value[1]
+	onFrame(context) {
+		console.log('onFrame', context.time)
 
-		if (!video0 || !video1) return null
+		const [video0, video1] = videoTextureArray?.textureArray.value ?? []
 
-		return {video0, video1}
+		if (!video0 || !video1 || !tileMap) return null
+
+		return {video0, video1, tileMap: tileMap.texture}
 	},
 })
 </script>
