@@ -36,7 +36,7 @@ interface Uniforms {
 	navMatrix: Regl.Mat3
 }
 
-const hasStarted = ref(true)
+const hasStarted = ref(false)
 
 const audioStarted = Promise.withResolvers<void>()
 
@@ -90,6 +90,9 @@ useRegl<Uniforms>(canvas, {
 
 		// パターンジェネレーター関数（常にcを返す）
 		tileMap.setMovePattern(function* (): Generator<MovePattern, never, void> {
+			yield Patterns.empty
+			yield Patterns.empty
+			yield Patterns.empty
 			// だんだん広がる
 			for (let i = 0; i < Patterns.size.width / 2; i++) {
 				yield Patterns.radialMask(Patterns.clockwise, i)
@@ -118,32 +121,6 @@ useRegl<Uniforms>(canvas, {
 			}
 		})
 
-		// return Patterns.clockwise
-
-		// if (step === 0) {
-		// 	return new MovePattern({
-		// 		...Patterns.size,
-		// 		initialize: (x, y) => {
-		// 			return {in: Direction.None, out: Direction.Right}
-		// 		},
-		// 	})
-		// }
-		// const index = Math.floor(step / 2) % 4
-		// let pattern!: MovePattern
-		// if (index === 0) {
-		// 	pattern = Patterns.upDown
-		// }
-		// if (index === 1) {
-		// 	pattern = invertMovePattern(Patterns.upDown)
-		// }
-		// if (index === 2) {
-		// 	pattern = Patterns.leftRight
-		// }
-		// if (index === 3) {
-		// 	pattern = invertMovePattern(Patterns.leftRight)
-		// }
-		// return pattern
-
 		// Start the timer
 		useIntervalFn(() => {
 			if (currentFrame === 0) {
@@ -155,10 +132,10 @@ useRegl<Uniforms>(canvas, {
 			}
 			currentFrame = scalar.mod(currentFrame + 1, 8)
 			videoTextureArray?.setFrame(currentFrame)
-		}, 1000 / 11)
+		}, 1000 / 8.8)
 
 		// Wait for audio to start
-		// await audioStarted.promise
+		await audioStarted.promise
 
 		return {
 			resolution(context: Regl.DefaultContext) {

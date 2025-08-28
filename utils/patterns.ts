@@ -95,3 +95,10 @@ export const right = new MovePattern({
 })
 
 export const left = invertMovePattern(right)
+
+export const empty = new MovePattern({
+	...size,
+	initialize: (x, y) => {
+		return {in: Direction.None, out: Direction.None}
+	},
+})
