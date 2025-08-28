@@ -14,7 +14,9 @@ export class TileMap {
 	#data: Uint8Array
 	#texture: Regl.Texture2D
 
-	#pattern: MovePattern | null = null
+	#patternGenerator: ((loop: number) => MovePattern) | null = null
+	#currentLoop: number = 0
+	#currentPattern: MovePattern | null = null
 
 	/** 各タイルのビデオインデックス */
 	#indices: Array2D<number>
@@ -46,9 +48,10 @@ export class TileMap {
 		return this.#texture
 	}
 
-	setMovePattern(pattern: MovePattern) {
-		this.#pattern = pattern
-
+	setMovePattern(patternGenerator: (loop: number) => MovePattern) {
+		this.#patternGenerator = patternGenerator
+		this.#currentLoop = 0
+		this.#currentPattern = this.#patternGenerator(this.#currentLoop)
 		this.#updateTexture()
 	}
 
@@ -56,10 +59,22 @@ export class TileMap {
 	 * タイル上のビデオインデックスを更新する
 	 */
 	nextStep() {
-		if (!this.#pattern) return
+		if (!this.#patternGenerator) return
+
+		// Advance to next loop and get pattern
+		const pattern = this.#patternGenerator(++this.#currentLoop)
+		this.#currentPattern = pattern
+
+		// Validate pattern dimensions
+		if (pattern.width !== this.width || pattern.height !== this.height) {
+			console.error(
+				`Pattern dimensions (${pattern.width}x${pattern.height}) ` +
+					`do not match TileMap dimensions (${this.width}x${this.height}) at loop ${this.#currentLoop}`
+			)
+			return
+		}
 
 		const indices = this.#indices
-		const pattern = this.#pattern
 
 		// const nextIndices = new Array2D(this.width, this.height, (x, y) => {
 		// 	if (this.#indices.get(x - 1, y) ===
@@ -91,7 +106,9 @@ export class TileMap {
 
 	// テクスチャを更新（GPUに送信）
 	#updateTexture() {
-		this.#pattern?.iterate((x, y, move) => {
+		if (!this.#currentPattern) return
+
+		this.#currentPattern.iterate((x, y, move) => {
 			if (move) {
 				const tileDisplay = moveToTileDisplay(move, this.#indices.get(x, y))
 				const index = y * this.width + x
@@ -99,6 +116,7 @@ export class TileMap {
 				this.#data[index] = uint8
 			}
 		})
+
 		this.#texture.subimage(this.#data)
 	}
 

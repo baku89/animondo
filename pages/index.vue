@@ -90,7 +90,7 @@ useRegl<Uniforms>(canvas, {
 			sampleMovePattern.width,
 			sampleMovePattern.height
 		)
-		tileMap.setMovePattern(sampleMovePattern)
+		tileMap.setMovePattern(() => sampleMovePattern)
 
 		// Start the timer
 		useIntervalFn(() => {
