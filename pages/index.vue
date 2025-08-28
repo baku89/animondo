@@ -21,7 +21,7 @@ import {TileMap} from '~/utils/TileMap'
 import {useIntervalFn} from '@vueuse/core'
 import {scalar, vec2} from 'linearly'
 import {useZUI} from '~/composables/useZUI'
-import {invertDirection} from '~/utils/tile'
+import * as Patterns from '~/utils/patterns'
 
 const canvas = useTemplateRef('canvas')
 
@@ -30,18 +30,21 @@ interface Uniforms {
 	resolution: Regl.Vec2
 	video0: Regl.Texture2D
 	video1: Regl.Texture2D
+	video2: Regl.Texture2D
 	tileMap: Regl.Texture2D
 	tileMapSize: Regl.Vec2
 	navMatrix: Regl.Mat3
 }
 
-const hasStarted = ref(false)
+const hasStarted = ref(true)
 
 const audioStarted = Promise.withResolvers<void>()
 
 async function startAudio() {
 	// Play background music
-	const audio = new Audio('/kawachiondo.mp3')
+	const audio = new Audio(
+		'/eu-japan-animation-residency-collab/kawachiondo.mp3'
+	)
 	audio.loop = true
 	audio.volume = 0.7
 	try {
@@ -63,68 +66,6 @@ let tileMap: TileMap | null = null
 // Initialize ZUI for navigation
 const zui = useZUI(canvas)
 
-const tileSize = {width: 4, height: 4}
-
-const patternCircle = new MovePattern({
-	...tileSize,
-	initialize: (ox, oy) => {
-		const [x, y] = vec2.sub([ox, oy], [tileSize.width / 2, tileSize.height / 2])
-
-		let isLeftBottom: boolean
-		let isRightBottom: boolean
-
-		let out = Direction.None
-
-		isLeftBottom = x < y || (x >= 0 && x === y)
-		isRightBottom = x >= -y || (x >= 0 && x + 1 === -y)
-
-		if (isLeftBottom) {
-			out = isRightBottom ? Direction.Left : Direction.Up
-		} else {
-			out = isRightBottom ? Direction.Down : Direction.Right
-		}
-
-		isLeftBottom = x < y || (x < 0 && x === y)
-		isRightBottom = x >= -y || (x < 0 && x + 1 === -y)
-
-		let _in = Direction.None
-
-		if (isLeftBottom) {
-			_in = isRightBottom ? Direction.Right : Direction.Down
-		} else {
-			_in = isRightBottom ? Direction.Up : Direction.Left
-		}
-
-		console.log([ox, oy], [x, y], _in, out)
-
-		if (x === y) {
-			;[_in, out] = [invertDirection(out), invertDirection(_in)]
-		}
-
-		return {in: _in, out}
-	},
-})
-
-const patternUpDown = new MovePattern({
-	...tileSize,
-	initialize: (x, y) => {
-		if (x % 2 === 0) {
-			return {in: Direction.Down, out: Direction.Up}
-		}
-		return {in: Direction.Up, out: Direction.Down}
-	},
-})
-
-const patternLeftRight = new MovePattern({
-	...tileSize,
-	initialize: (x, y) => {
-		if (y % 2 === 0) {
-			return {in: Direction.Right, out: Direction.Left}
-		}
-		return {in: Direction.Left, out: Direction.Right}
-	},
-})
-
 let isFirstLoop = true
 let currentFrame = 0
 
@@ -136,31 +77,46 @@ useRegl<Uniforms>(canvas, {
 		videoTextureArray = useVideoTextureArray(regl, [
 			'sprites/00_noemie.mp4',
 			'sprites/01_baku.mp4',
+			'sprites/02_sumito.mp4',
 		])
 		await videoTextureArray.load()
 
 		// Initialize tile map
-		tileMap = new TileMap(regl, tileSize.width, tileSize.height)
+		tileMap = new TileMap({
+			regl,
+			...Patterns.size,
+			numberOfVideos: 3,
+		})
+
 		// パターンジェネレーター関数（パターンインデックスを受け取る）
 		tileMap.setMovePattern(step => {
+			if (step === 0) {
+				return new MovePattern({
+					...Patterns.size,
+					initialize: (x, y) => {
+						return {in: Direction.None, out: Direction.Right}
+					},
+				})
+			}
+
 			const index = Math.floor(step / 2) % 4
 
 			let pattern!: MovePattern
 
 			if (index === 0) {
-				pattern = patternUpDown
+				pattern = Patterns.upDown
 			}
 
 			if (index === 1) {
-				pattern = invertMovePattern(patternUpDown)
+				pattern = invertMovePattern(Patterns.upDown)
 			}
 
 			if (index === 2) {
-				pattern = patternLeftRight
+				pattern = Patterns.leftRight
 			}
 
 			if (index === 3) {
-				pattern = invertMovePattern(patternLeftRight)
+				pattern = invertMovePattern(Patterns.leftRight)
 			}
 
 			return pattern
@@ -180,7 +136,7 @@ useRegl<Uniforms>(canvas, {
 		}, 1000 / 11)
 
 		// Wait for audio to start
-		await audioStarted.promise
+		// await audioStarted.promise
 
 		return {
 			resolution(context: Regl.DefaultContext) {
@@ -188,19 +144,21 @@ useRegl<Uniforms>(canvas, {
 			},
 			video0: regl.prop<Uniforms, 'video0'>('video0'),
 			video1: regl.prop<Uniforms, 'video1'>('video1'),
+			video2: regl.prop<Uniforms, 'video2'>('video2'),
 			tileMap: regl.prop<Uniforms, 'tileMap'>('tileMap'),
 			tileMapSize: [tileMap.width, tileMap.height],
 			navMatrix: regl.prop<Uniforms, 'navMatrix'>('navMatrix'),
 		}
 	},
 	onFrame() {
-		const [video0, video1] = videoTextureArray?.textureArray.value ?? []
+		const [video0, video1, video2] = videoTextureArray?.textureArray.value ?? []
 
-		if (!video0 || !video1 || !tileMap) return null
+		if (!video0 || !video1 || !video2 || !tileMap) return null
 
 		return {
 			video0,
 			video1,
+			video2,
 			tileMap: tileMap.texture,
 			navMatrix: zui.inverseMatrix.value,
 		}

@@ -8,10 +8,21 @@ import {
 	type MovePattern,
 } from './tile'
 
+interface TileMapOptions {
+	regl: Regl.Regl
+	width: number
+	height: number
+	numberOfVideos: number
+}
+
 /**
  * タイルの状態や、シェーダー用のマップテクスチャを管理する
  */
 export class TileMap {
+	readonly width: number
+	readonly height: number
+	readonly numberOfVideos: number
+
 	#data: Uint8Array
 	#texture: Regl.Texture2D
 
@@ -22,19 +33,19 @@ export class TileMap {
 	/** 各タイルのビデオインデックス */
 	#indices: Array2D<number>
 
-	constructor(
-		readonly regl: Regl.Regl,
-		readonly width: number,
-		readonly height: number
-	) {
+	constructor(readonly options: TileMapOptions) {
+		this.width = options.width
+		this.height = options.height
+		this.numberOfVideos = options.numberOfVideos
+
 		this.#data = new Uint8Array(this.width * this.height)
 		this.#indices = new Array2D({
 			width: this.width,
 			height: this.height,
-			initialize: (x, y) => (x + y) % 2,
+			initialize: (x, y) => Math.floor(Math.random() * this.numberOfVideos),
 		})
 
-		this.#texture = this.regl.texture({
+		this.#texture = this.options.regl.texture({
 			width: this.width,
 			height: this.height,
 			format: 'luminance',
@@ -64,6 +75,33 @@ export class TileMap {
 	 * ステップ: 0-1, 1-2, 2-3, 3-4, ...
 	 */
 	nextStep() {
+		// Update indices based on current pattern
+		const previousPattern = this.#currentPattern
+
+		if (previousPattern) {
+			this.#indices = this.#indices.map((x, y, _, indices) => {
+				// Check left
+				if (previousPattern.get(x - 1, y).out === Direction.Right) {
+					return indices.get(x - 1, y)
+				}
+				// Check Up
+				if (previousPattern.get(x, y - 1).out === Direction.Down) {
+					return indices.get(x, y - 1)
+				}
+				// Check Right
+				if (previousPattern.get(x + 1, y).out === Direction.Left) {
+					return indices.get(x + 1, y)
+				}
+				// Check Down
+				if (previousPattern.get(x, y + 1).out === Direction.Up) {
+					return indices.get(x, y + 1)
+				}
+
+				// どこからも流入していないときはランダムに
+				return Math.floor(Math.random() * this.numberOfVideos)
+			})
+		}
+
 		if (!this.#patternGenerator) return
 
 		// 常にトランジション: currentStep → currentStep+1
@@ -86,31 +124,6 @@ export class TileMap {
 
 		this.#currentPattern = interpolateMovePattens(pattern1, pattern2)
 		this.#currentStep++
-
-		// Update indices based on current pattern
-		this.#indices = this.#indices.map((x, y, _, indices) => {
-			if (!this.#currentPattern) return 0
-
-			// Check left
-			if (this.#currentPattern.get(x - 1, y).out === Direction.Right) {
-				return indices.get(x - 1, y)
-			}
-			// Check Up
-			if (this.#currentPattern.get(x, y - 1).out === Direction.Down) {
-				return indices.get(x, y - 1)
-			}
-			// Check Right
-			if (this.#currentPattern.get(x + 1, y).out === Direction.Left) {
-				return indices.get(x + 1, y)
-			}
-			// Check Down
-			if (this.#currentPattern.get(x, y + 1).out === Direction.Up) {
-				return indices.get(x, y + 1)
-			}
-
-			// どこからも流入していないときは0
-			return 0
-		})
 
 		this.#updateTexture()
 	}

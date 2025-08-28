@@ -43,9 +43,9 @@ const TILE_DISPLAY_TABLE: Omit<TileDisplay, 'index'>[][] = [
 	[
 		{tile: Tile.None, rotation: 0}, // None→None
 		{tile: Tile.Birth, rotation: 3}, // None→Up (birth upward)
-		{tile: Tile.Birth, rotation: 2}, // None→Right (birth rightward)
+		{tile: Tile.Birth, rotation: 0}, // None→Right (birth rightward)
 		{tile: Tile.Birth, rotation: 1}, // None→Down (birth downward)
-		{tile: Tile.Birth, rotation: 0}, // None→Left (birth leftward)
+		{tile: Tile.Birth, rotation: 2}, // None→Left (birth leftward)
 	],
 	// inDir=Up (1)
 	[
