@@ -46,17 +46,28 @@ const zui = useZUI(canvas)
 // 	],
 // })
 
+// const sampleMovePattern = new MovePattern({
+// 	array: [
+// 		[
+// 			{in: Direction.None, out: Direction.Down},
+// 			{in: Direction.Down, out: Direction.None},
+// 		],
+// 		[
+// 			{in: Direction.Up, out: Direction.Right},
+// 			{in: Direction.Left, out: Direction.Up},
+// 		],
+// 	],
+// })
+
 const sampleMovePattern = new MovePattern({
-	array: [
-		[
-			{in: Direction.None, out: Direction.Down},
-			{in: Direction.Down, out: Direction.None},
-		],
-		[
-			{in: Direction.Up, out: Direction.Right},
-			{in: Direction.Left, out: Direction.Up},
-		],
-	],
+	width: 4,
+	height: 4,
+	initialize: (x, y) => {
+		if (x % 2 === 0) {
+			return {in: Direction.Down, out: Direction.Up}
+		}
+		return {in: Direction.Up, out: Direction.Down}
+	},
 })
 
 let isFirstLoop = true
@@ -74,7 +85,11 @@ useRegl<Uniforms>(canvas, {
 		await videoTextureArray.load()
 
 		// Initialize tile map
-		tileMap = new TileMap(regl, 2, 2)
+		tileMap = new TileMap(
+			regl,
+			sampleMovePattern.width,
+			sampleMovePattern.height
+		)
 		tileMap.setMovePattern(sampleMovePattern)
 
 		// Start the timer
@@ -88,7 +103,7 @@ useRegl<Uniforms>(canvas, {
 			}
 			currentFrame = scalar.mod(currentFrame + 1, 8)
 			videoTextureArray?.setFrame(currentFrame)
-		}, 1000 / 24)
+		}, 1000 / 10)
 
 		return {
 			resolution(context: Regl.DefaultContext) {
