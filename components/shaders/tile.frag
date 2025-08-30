@@ -117,10 +117,10 @@ vec4 drawOverlappingTiles(vec2 coord) {
     vec4 result = center;
     
     // Top half overlaps with tile above
-    result *= up;
-    result *= down;
-    result *= left;
-    result *= right;
+    result = min(result, up);
+    result = min(result, down);
+    result = min(result, left);
+    result = min(result, right);
     
     return result;
 
