@@ -23,17 +23,27 @@ uniform mat3 navMatrix;
 #define TILE_DEATH 6
 
 // Unpack tile data from TileMap texture
-// Returns: x = tile index, y = rotation, z = video index
-ivec3 unpackTileData(vec2 tileCoord) {
+// Returns: x = tile index, y = rotation, z = video index, w = flip vertical
+ivec4 unpackTileData(vec2 tileCoord) {
     // Sample the packed data from tile map
-    float packedValue = texture2D(tileMap, tileCoord / tileMapSize).r * 255.0;
+    vec2 packedValue = texture2D(tileMap, tileCoord / tileMapSize).rg * 255.0;
     
-    // Unpack: tile (bits 0-2), rotation (bits 3-4), videoIndex (bits 5-7)
-    int tileIndex = int(mod(packedValue, 8.0));
-    int rotation = int(mod(floor(packedValue / 8.0), 4.0));
-    int videoIndex = int(floor(packedValue / 32.0));
+    // Red channel: video index (4 bits)
+    int videoIndex = int(packedValue.r);
     
-    return ivec3(tileIndex, rotation, videoIndex);
+    // Green channel: tile (bits 0-2), rotation (bits 3-4), flipVertical (bit 5)
+    int greenValue = int(packedValue.g);
+    
+    // Extract tile index (bits 0-2): value mod 8
+    int tileIndex = int(mod(float(greenValue), 8.0));
+    
+    // Extract rotation (bits 3-4): (value / 8) mod 4
+    int rotation = int(mod(floor(float(greenValue) / 8.0), 4.0));
+    
+    // Extract flipVertical (bit 5): value / 32
+    int flipVertical = int(floor(float(greenValue) / 32.0));
+    
+    return ivec4(tileIndex, rotation, videoIndex, flipVertical);
 }
 
 vec2 rotateUV(vec2 uv, int rotation) {
@@ -55,13 +65,18 @@ vec2 rotateUV(vec2 uv, int rotation) {
     return rotatedUV;
 }
 
-vec4 tile(vec2 uv, sampler2D texture, int index, int rotation) {
-    float indexFloat = float(index) - 1.0;
+vec4 tile(vec2 uv, sampler2D texture, int tile, int rotation, int flipVertical) {
+    float tileFloat = float(tile) - 1.0;
 
     vec2 offset = vec2(
-        mod(indexFloat, 3.0),
-        floor(indexFloat / 3.0)
+        mod(tileFloat, 3.0),
+        floor(tileFloat / 3.0)
     );
+    
+    // Apply vertical flip if needed
+    if (flipVertical == 1) {
+        uv.y = 1.0 - uv.y;
+    }
     
     // Rotate UV
     uv = rotateUV(uv, rotation);
@@ -80,10 +95,11 @@ vec4 tile(vec2 uv, sampler2D texture, int index, int rotation) {
 vec4 drawTileAt(vec2 tileCoord, vec2 uv) {
 
     // Get tile data from TileMap
-    ivec3 tileData = unpackTileData(tileCoord);
+    ivec4 tileData = unpackTileData(tileCoord);
     int tileIndex = tileData.x;
     int rotation = tileData.y;
     int videoIndex = tileData.z;
+    int flipVertical = tileData.w;
     
     // Skip empty tiles (white)
     if (tileIndex == TILE_NONE) {
@@ -93,17 +109,17 @@ vec4 drawTileAt(vec2 tileCoord, vec2 uv) {
     // TODO: Use videoIndex to select from video array
     // For now, use the single video texture
    if (videoIndex == 0) {
-        return tile(uv, video0, tileIndex, rotation);
+        return tile(uv, video0, tileIndex, rotation, flipVertical);
    } else if (videoIndex == 1) {
-        return tile(uv, video1, tileIndex, rotation);
+        return tile(uv, video1, tileIndex, rotation, flipVertical);
    } else if (videoIndex == 2) {
-        return tile(uv, video2, tileIndex, rotation);
+        return tile(uv, video2, tileIndex, rotation, flipVertical);
    } else if (videoIndex == 3) {
-        return tile(uv, video3, tileIndex, rotation);
+        return tile(uv, video3, tileIndex, rotation, flipVertical);
    } else if (videoIndex == 4) {
-        return tile(uv, video4, tileIndex, rotation);
+        return tile(uv, video4, tileIndex, rotation, flipVertical);
    } else if (videoIndex == 5) {
-        return tile(uv, video5, tileIndex, rotation);
+        return tile(uv, video5, tileIndex, rotation, flipVertical);
    }
 }
 

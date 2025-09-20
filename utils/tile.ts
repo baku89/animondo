@@ -25,6 +25,8 @@ export type TileDisplay = {
 	rotation: number
 	/* タイル素材のインデックス */
 	index: number
+	/* タイルを上下反転させるか */
+	flipVertical: boolean
 }
 
 // どの向きから入って、度の向きから出ていくか。片方のディレクションがNoneの場合は、BirthかDeath。
@@ -34,7 +36,7 @@ export type Move = {in: Direction; out: Direction}
 // moveToTileDisplayのルックアップテーブル [inDir][outDir] -> TileDisplay
 // Direction enum: None=0, Up=1, Right=2, Down=3, Left=4
 // rotation: 0=0°, 1=90°, 2=180°, 3=270° (素材は「左から入る」前提)
-const TILE_DISPLAY_TABLE: Omit<TileDisplay, 'index'>[][] = [
+const TILE_DISPLAY_TABLE: Omit<TileDisplay, 'index' | 'flipVertical'>[][] = [
 	// inDir=None (0) - Birth cases
 	[
 		{tile: Tile.None, rotation: 0}, // None→None
@@ -85,28 +87,49 @@ export function moveToTileDisplay(move: Move, index: number = 0): TileDisplay {
 	return {
 		...baseTileDisplay,
 		index,
+		flipVertical: false,
 	}
 }
 
-// TileDisplayをUint8に変換
-// Tile: 3bit (6種類)
-// Rotation: 2bit (4種類)
-// Index: 3bit (10種類)
-// III | RR | TTT
-export function tileDisplayToUint8(tileDisplay: TileDisplay): number {
-	return (
+type TileDisplayColorValue = readonly [
+	/**
+	 * Red: どのタイル素材を使うか。
+	 * Index: 4bit (10種類)
+	 * ____IIII
+	 */
+	index: number,
+	/**
+	 * Green: タイルの状態。
+	 * Tile: 3bit (6種類)
+	 * Rotation: 2bit (4種類)
+	 * FlipVertical: 1bit (2種類)
+	 * __FRRTTT
+	 */
+	state: number,
+]
+
+/** TileDisplayをカラー値にエンコード */
+export function tileDisplayToColorValue(
+	tileDisplay: TileDisplay
+): TileDisplayColorValue {
+	return [
+		tileDisplay.index,
 		(tileDisplay.tile & 0b111) |
-		((tileDisplay.rotation & 0b11) << 3) |
-		((tileDisplay.index & 0b111) << 5)
-	)
+			((tileDisplay.rotation & 0b11) << 3) |
+			((tileDisplay.flipVertical ? 1 : 0) << 5),
+	]
 }
 
-// Uint8からTileDisplayに変換
-export function uint8ToTileDisplay(value: number): TileDisplay {
+// カラー値からTileDisplayに変換
+export function colorValueToTileDisplay([
+	index,
+	state,
+]: TileDisplayColorValue): TileDisplay {
 	return {
-		tile: value & 0b111, // Bits 0-2
-		rotation: (value >> 3) & 0b11, // Bits 3-4
-		index: (value >> 5) & 0b111, // Bits 5-7
+		index,
+		tile: state & 0b111, // Bits 0-2
+		rotation: (state >> 3) & 0b11, // Bits 3-4
+		flipVertical: !!(state >> 5), // Bit 5
 	}
 }
 

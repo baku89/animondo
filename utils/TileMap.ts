@@ -1,7 +1,7 @@
 import type Regl from 'regl'
 import {Array2D} from './Array2D'
 import type {MovePattern} from './patterns'
-import {Direction, moveToTileDisplay, tileDisplayToUint8} from './tile'
+import {Direction, moveToTileDisplay, tileDisplayToColorValue} from './tile'
 
 interface TileMapOptions {
 	regl: Regl.Regl
@@ -32,7 +32,9 @@ export class TileMap {
 	readonly height: number
 	readonly numberOfVideos: number
 
+	/** タイル情報を格納したテクスチャのデータ。赤にindex, 緑にその他の情報を格納 */
 	#data: Uint8Array
+
 	#texture: Regl.Texture2D
 
 	#patternGenerator: Generator<MovePattern, never, void> | null = null
@@ -47,7 +49,7 @@ export class TileMap {
 		this.height = options.height
 		this.numberOfVideos = options.numberOfVideos
 
-		this.#data = new Uint8Array(this.width * this.height)
+		this.#data = new Uint8Array(this.width * this.height * 3)
 		this.#indices = new Array2D({
 			width: this.width,
 			height: this.height,
@@ -57,7 +59,7 @@ export class TileMap {
 		this.#texture = this.options.regl.texture({
 			width: this.width,
 			height: this.height,
-			format: 'luminance',
+			format: 'rgb',
 			type: 'uint8',
 			mag: 'nearest',
 			min: 'nearest',
@@ -152,9 +154,10 @@ export class TileMap {
 		this.#currentPattern.iterate((x, y, move) => {
 			if (move) {
 				const tileDisplay = moveToTileDisplay(move, this.#indices.get(x, y))
-				const index = y * this.width + x
-				const uint8 = tileDisplayToUint8(tileDisplay)
-				this.#data[index] = uint8
+				const offset = (y * this.width + x) * 3
+				const [index, state] = tileDisplayToColorValue(tileDisplay)
+				this.#data[offset] = index
+				this.#data[offset + 1] = state
 			}
 		})
 
