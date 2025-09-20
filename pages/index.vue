@@ -31,6 +31,9 @@ interface Uniforms {
 	video0: Regl.Texture2D
 	video1: Regl.Texture2D
 	video2: Regl.Texture2D
+	video3: Regl.Texture2D
+	video4: Regl.Texture2D
+	video5: Regl.Texture2D
 	tileMap: Regl.Texture2D
 	tileMapSize: Regl.Vec2
 	navMatrix: Regl.Mat3
@@ -75,9 +78,12 @@ useRegl<Uniforms>(canvas, {
 	async onInit(regl) {
 		// Load video texture
 		videoTextureArray = useVideoTextureArray(regl, [
-			'sprites/00_noemie.mp4',
-			'sprites/01_baku.mp4',
-			'sprites/02_sumito.mp4',
+			'sprites/noemie.mp4',
+			'sprites/baku.mp4',
+			'sprites/sumito.mp4',
+			'sprites/masa.mp4',
+			'sprites/edmunds.mp4',
+			'sprites/honami.mp4',
 		])
 		await videoTextureArray.load()
 
@@ -85,7 +91,7 @@ useRegl<Uniforms>(canvas, {
 		tileMap = new TileMap({
 			regl,
 			...Patterns.size,
-			numberOfVideos: 3,
+			numberOfVideos: 6,
 		})
 
 		// パターンジェネレーター関数（常にcを返す）
@@ -144,20 +150,36 @@ useRegl<Uniforms>(canvas, {
 			video0: regl.prop<Uniforms, 'video0'>('video0'),
 			video1: regl.prop<Uniforms, 'video1'>('video1'),
 			video2: regl.prop<Uniforms, 'video2'>('video2'),
+			video3: regl.prop<Uniforms, 'video3'>('video3'),
+			video4: regl.prop<Uniforms, 'video4'>('video4'),
+			video5: regl.prop<Uniforms, 'video5'>('video5'),
 			tileMap: regl.prop<Uniforms, 'tileMap'>('tileMap'),
 			tileMapSize: [tileMap.width, tileMap.height],
 			navMatrix: regl.prop<Uniforms, 'navMatrix'>('navMatrix'),
 		}
 	},
 	onFrame() {
-		const [video0, video1, video2] = videoTextureArray?.textureArray.value ?? []
+		const [video0, video1, video2, video3, video4, video5, video6] =
+			videoTextureArray?.textureArray.value ?? []
 
-		if (!video0 || !video1 || !video2 || !tileMap) return null
+		if (
+			!video0 ||
+			!video1 ||
+			!video2 ||
+			!video3 ||
+			!video4 ||
+			!video5 ||
+			!tileMap
+		)
+			return null
 
 		return {
 			video0,
 			video1,
 			video2,
+			video3,
+			video4,
+			video5,
 			tileMap: tileMap.texture,
 			navMatrix: zui.inverseMatrix.value,
 		}
