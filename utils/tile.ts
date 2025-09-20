@@ -79,7 +79,11 @@ const TILE_DISPLAY_TABLE: Omit<TileDisplay, 'index' | 'flipVertical'>[][] = [
 	],
 ]
 
-export function moveToTileDisplay(move: Move, index: number = 0): TileDisplay {
+export function moveToTileDisplay(
+	move: Move,
+	index: number,
+	flipVertical: boolean
+): TileDisplay {
 	const baseTileDisplay = TILE_DISPLAY_TABLE[move.in]?.[move.out] ?? {
 		tile: Tile.None,
 		rotation: 0,
@@ -87,7 +91,7 @@ export function moveToTileDisplay(move: Move, index: number = 0): TileDisplay {
 	return {
 		...baseTileDisplay,
 		index,
-		flipVertical: false,
+		flipVertical,
 	}
 }
 
@@ -118,19 +122,6 @@ export function tileDisplayToColorValue(
 			((tileDisplay.rotation & 0b11) << 3) |
 			((tileDisplay.flipVertical ? 1 : 0) << 5),
 	]
-}
-
-// カラー値からTileDisplayに変換
-export function colorValueToTileDisplay([
-	index,
-	state,
-]: TileDisplayColorValue): TileDisplay {
-	return {
-		index,
-		tile: state & 0b111, // Bits 0-2
-		rotation: (state >> 3) & 0b11, // Bits 3-4
-		flipVertical: !!(state >> 5), // Bit 5
-	}
 }
 
 // 方向を反転させる

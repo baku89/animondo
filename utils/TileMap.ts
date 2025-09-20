@@ -33,8 +33,9 @@ export class TileMap {
 	readonly numberOfVideos: number
 
 	/** タイル情報を格納したテクスチャのデータ。赤にindex, 緑にその他の情報を格納 */
-	#data: Uint8Array
+	#pixels: Uint8Array
 
+	/** OpenGL用のタイル情報をカラー値として保存したテクスチャ。 */
 	#texture: Regl.Texture2D
 
 	#patternGenerator: Generator<MovePattern, never, void> | null = null
@@ -42,18 +43,18 @@ export class TileMap {
 	#nextPattern: MovePattern | null = null
 
 	/** 各タイルのビデオインデックス */
-	#indices: Array2D<number>
+	#tileInfo: Array2D<{index: number; flipVertical: boolean}>
 
 	constructor(readonly options: TileMapOptions) {
 		this.width = options.width
 		this.height = options.height
 		this.numberOfVideos = options.numberOfVideos
 
-		this.#data = new Uint8Array(this.width * this.height * 3)
-		this.#indices = new Array2D({
+		this.#pixels = new Uint8Array(this.width * this.height * 3)
+		this.#tileInfo = new Array2D({
 			width: this.width,
 			height: this.height,
-			initialize: (x, y) => Math.floor(Math.random() * this.numberOfVideos),
+			initialize: this.#generateTileInfoRandomly,
 		})
 
 		this.#texture = this.options.regl.texture({
@@ -65,6 +66,13 @@ export class TileMap {
 			min: 'nearest',
 			wrap: 'repeat',
 		})
+	}
+
+	#generateTileInfoRandomly = () => {
+		return {
+			index: Math.floor(Math.random() * this.numberOfVideos),
+			flipVertical: true,
+		}
 	}
 
 	get texture(): Regl.Texture2D {
@@ -105,26 +113,26 @@ export class TileMap {
 		const previousPattern = this.#currentPattern
 
 		if (previousPattern) {
-			this.#indices = this.#indices.map((x, y, _, indices) => {
+			this.#tileInfo = this.#tileInfo.map((x, y, _, tileInfo) => {
 				// Check left
 				if (previousPattern.get(x - 1, y).out === Direction.Right) {
-					return indices.get(x - 1, y)
+					return tileInfo.get(x - 1, y)
 				}
 				// Check Up
 				if (previousPattern.get(x, y - 1).out === Direction.Down) {
-					return indices.get(x, y - 1)
+					return tileInfo.get(x, y - 1)
 				}
 				// Check Right
 				if (previousPattern.get(x + 1, y).out === Direction.Left) {
-					return indices.get(x + 1, y)
+					return tileInfo.get(x + 1, y)
 				}
 				// Check Down
 				if (previousPattern.get(x, y + 1).out === Direction.Up) {
-					return indices.get(x, y + 1)
+					return tileInfo.get(x, y + 1)
 				}
 
 				// どこからも流入していないときはランダムに
-				return Math.floor(Math.random() * this.numberOfVideos)
+				return this.#generateTileInfoRandomly()
 			})
 		}
 
@@ -153,15 +161,23 @@ export class TileMap {
 
 		this.#currentPattern.iterate((x, y, move) => {
 			if (move) {
-				const tileDisplay = moveToTileDisplay(move, this.#indices.get(x, y))
+				const info = this.#tileInfo.get(x, y)
+				const tileDisplay = moveToTileDisplay(
+					move,
+					info.index,
+					info.flipVertical
+				)
+
 				const offset = (y * this.width + x) * 3
+
 				const [index, state] = tileDisplayToColorValue(tileDisplay)
-				this.#data[offset] = index
-				this.#data[offset + 1] = state
+
+				this.#pixels[offset] = index
+				this.#pixels[offset + 1] = state
 			}
 		})
 
-		this.#texture.subimage(this.#data)
+		this.#texture.subimage(this.#pixels)
 	}
 
 	// 破棄
