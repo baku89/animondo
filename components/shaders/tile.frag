@@ -11,6 +11,10 @@ uniform sampler2D video2;
 uniform sampler2D video3;
 uniform sampler2D video4;
 uniform sampler2D video5;
+uniform sampler2D video6;
+uniform sampler2D video7;
+uniform sampler2D video8;
+uniform sampler2D video9;
 
 uniform mat3 navMatrix;
 
@@ -122,6 +126,14 @@ vec4 drawTileAt(vec2 tileCoord, vec2 uv) {
         return tile(uv, video4, tileIndex, rotation, flipVertical);
    } else if (videoIndex == 5) {
         return tile(uv, video5, tileIndex, rotation, flipVertical);
+   } else if (videoIndex == 6) {
+        return tile(uv, video6, tileIndex, rotation, flipVertical);
+   } else if (videoIndex == 7) {
+        return tile(uv, video7, tileIndex, rotation, flipVertical);
+   } else if (videoIndex == 8) {
+        return tile(uv, video8, tileIndex, rotation, flipVertical);
+   } else if (videoIndex == 9) {
+        return tile(uv, video9, tileIndex, rotation, flipVertical);
    }
 }
 
