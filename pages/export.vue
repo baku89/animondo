@@ -1,6 +1,6 @@
 <template>
 	<main>
-		<button v-if="!hasStarted" @click="startAudio">
+		<button v-if="!audio.hasStarted.value" @click="audio.start">
 			Tap To Start<br />
 			<div class="small">
 				Osaka EXPO EU-Japan Animation Residency<br />
@@ -21,6 +21,7 @@ import {TileMap} from '~/utils/TileMap'
 import {useIntervalFn} from '@vueuse/core'
 import {mat2d, mat3, scalar} from 'linearly'
 import * as Patterns from '~/utils/patterns'
+import {useKawachiAudio} from '~/composables/useKawachiAudio'
 
 const canvas = useTemplateRef('canvas')
 
@@ -42,29 +43,7 @@ interface Uniforms {
 	navMatrix: Regl.Mat3
 }
 
-const hasStarted = ref(false)
-
-const audioStarted = Promise.withResolvers<void>()
-
-async function startAudio() {
-	// Play background music
-	const audio = new Audio(
-		'/eu-japan-animation-residency-collab/kawachiondo.mp3'
-	)
-	audio.loop = true
-	audio.volume = 0.7
-	try {
-		await audio.play()
-	} catch (error) {
-		console.log(
-			'Audio playback failed (probably due to autoplay policy):',
-			error
-		)
-	}
-
-	hasStarted.value = true
-	audioStarted.resolve()
-}
+const audio = useKawachiAudio()
 
 let videoTextureArray: ReturnType<typeof useVideoTextureArray> | null = null
 let tileMap: TileMap | null = null
@@ -156,7 +135,7 @@ useRegl<Uniforms>(canvas, {
 		}, 1000 / 8.8)
 
 		// Wait for audio to start
-		await audioStarted.promise
+		await audio.waitForPlay()
 
 		return {
 			resolution(context: Regl.DefaultContext) {
