@@ -72,14 +72,16 @@ vec4 tile(vec2 uv, sampler2D texture, int tile, int rotation, int flipVertical) 
         mod(tileFloat, 3.0),
         floor(tileFloat / 3.0)
     );
+    // Rotate UV
+    uv = rotateUV(uv, rotation);
+
     
     // Apply vertical flip if needed
     if (flipVertical == 1) {
         uv.y = 1.0 - uv.y;
     }
     
-    // Rotate UV
-    uv = rotateUV(uv, rotation);
+
     // Scale UV
     uv = mix(vec2(0.25), vec2(0.75), uv);
 

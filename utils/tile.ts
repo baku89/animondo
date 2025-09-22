@@ -116,11 +116,19 @@ type TileDisplayColorValue = readonly [
 export function tileDisplayToColorValue(
 	tileDisplay: TileDisplay
 ): TileDisplayColorValue {
+	let {index, flipVertical, tile, rotation} = tileDisplay
+
+	if (flipVertical) {
+		if (tile === Tile.Up) {
+			tile = Tile.Down
+		} else if (tile === Tile.Down) {
+			tile = Tile.Up
+		}
+	}
+
 	return [
-		tileDisplay.index,
-		(tileDisplay.tile & 0b111) |
-			((tileDisplay.rotation & 0b11) << 3) |
-			((tileDisplay.flipVertical ? 1 : 0) << 5),
+		index,
+		(tile & 0b111) | ((rotation & 0b11) << 3) | ((flipVertical ? 1 : 0) << 5),
 	]
 }
 

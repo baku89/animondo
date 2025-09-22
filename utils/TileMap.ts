@@ -10,6 +10,8 @@ interface TileMapOptions {
 	numberOfVideos: number
 }
 
+const HonamiIndex = 5
+
 // 2つのパターンがつながるようなパターンを作る
 function interpolateMovePattens(
 	pattern1: MovePattern,
@@ -71,7 +73,7 @@ export class TileMap {
 	#generateTileInfoRandomly = () => {
 		return {
 			index: Math.floor(Math.random() * this.numberOfVideos),
-			flipVertical: true,
+			flipVertical: false,
 		}
 	}
 
@@ -114,21 +116,41 @@ export class TileMap {
 
 		if (previousPattern) {
 			this.#tileInfo = this.#tileInfo.map((x, y, _, tileInfo) => {
+				let info: {index: number; flipVertical: boolean} | undefined
+				let neighbourMove: Move | undefined
+
 				// Check left
-				if (previousPattern.get(x - 1, y).out === Direction.Right) {
-					return tileInfo.get(x - 1, y)
+				neighbourMove = previousPattern.get(x - 1, y)
+				if (neighbourMove.out === Direction.Right) {
+					info = tileInfo.get(x - 1, y)
 				}
 				// Check Up
-				if (previousPattern.get(x, y - 1).out === Direction.Down) {
-					return tileInfo.get(x, y - 1)
+				neighbourMove = previousPattern.get(x, y - 1)
+				if (neighbourMove.out === Direction.Down) {
+					info = tileInfo.get(x, y - 1)
 				}
 				// Check Right
-				if (previousPattern.get(x + 1, y).out === Direction.Left) {
-					return tileInfo.get(x + 1, y)
+				neighbourMove = previousPattern.get(x + 1, y)
+				if (neighbourMove.out === Direction.Left) {
+					info = tileInfo.get(x + 1, y)
 				}
 				// Check Down
-				if (previousPattern.get(x, y + 1).out === Direction.Up) {
-					return tileInfo.get(x, y + 1)
+				neighbourMove = previousPattern.get(x, y + 1)
+				if (neighbourMove.out === Direction.Up) {
+					info = tileInfo.get(x, y + 1)
+				}
+
+				if (info) {
+					if (
+						info.index === HonamiIndex &&
+						neighbourMove.in === neighbourMove.out
+					) {
+						return {
+							...info,
+							flipVertical: !info.flipVertical,
+						}
+					}
+					return info
 				}
 
 				// どこからも流入していないときはランダムに
