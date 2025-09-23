@@ -7,7 +7,7 @@ export function useVideoTexture(regl: Regl.Regl, videoSrc: string) {
 	const load = async () => {
 		// Create video element
 		const videoElement = document.createElement('video')
-		videoElement.src = '/eu-japan-animation-residency-collab/' + videoSrc
+		videoElement.src = '/animondo/' + videoSrc
 		videoElement.muted = true
 		videoElement.crossOrigin = 'anonymous'
 		videoElement.playsInline = true

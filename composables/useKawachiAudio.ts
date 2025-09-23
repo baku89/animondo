@@ -1,7 +1,5 @@
 export function useKawachiAudio() {
-	const audio = new Audio(
-		'/eu-japan-animation-residency-collab/kawachiondo.mp3'
-	)
+	const audio = new Audio('/animondo/kawachiondo.mp3')
 	audio.loop = true
 
 	const hasStarted = ref(false)

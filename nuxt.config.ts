@@ -19,7 +19,7 @@ export default defineNuxtConfig({
 				},
 			],
 		},
-		baseURL: '/eu-japan-animation-residency-collab/',
+		baseURL: '/animondo/',
 		buildAssetsDir: '/_nuxt/',
 	},
 	css: ['~/assets/style.styl'],
