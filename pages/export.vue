@@ -203,7 +203,7 @@ useRegl<Uniforms>(canvas, {
 })
 
 useSeoMeta({
-	title: 'Kawachi Ondo',
+	title: 'Animondo',
 })
 </script>
 
