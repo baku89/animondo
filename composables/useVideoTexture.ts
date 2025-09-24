@@ -25,11 +25,23 @@ export function useVideoTexture(regl: Regl.Regl, videoSrc: string) {
 		texture.value = regl.texture(videoElement)
 	}
 
-	const setFrame = (frameNumber: number, fps: number = 12) => {
+	const setFrame = async (frameNumber: number, fps: number = 12) => {
 		if (!texture.value || !video.value) return
 
 		const timeInSeconds = (frameNumber + 0.01) / fps
 		video.value.currentTime = timeInSeconds
+
+		// Wait for video to seek to the correct frame
+		await new Promise<void>(resolve => {
+			const checkTime = () => {
+				if (Math.abs(video.value!.currentTime - timeInSeconds) < 0.1) {
+					resolve()
+				} else {
+					requestAnimationFrame(checkTime)
+				}
+			}
+			checkTime()
+		})
 
 		texture.value.subimage(video.value)
 	}

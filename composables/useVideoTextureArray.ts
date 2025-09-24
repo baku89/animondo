@@ -15,10 +15,11 @@ export function useVideoTextureArray(regl: Regl.Regl, videoSources: string[]) {
 			.filter(Boolean)
 	}
 
-	const setFrame = (frameNumber: number, fps: number = 12) => {
-		for (const videoTexture of videoTextures) {
-			videoTexture.setFrame(frameNumber, fps)
-		}
+	const setFrame = async (frameNumber: number, fps: number = 12) => {
+		// Wait for all video textures to update in parallel
+		await Promise.all(
+			videoTextures.map(videoTexture => videoTexture.setFrame(frameNumber, fps))
+		)
 	}
 
 	return {
