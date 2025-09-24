@@ -55,7 +55,6 @@ export function useRegl<Uniforms extends Record<string, any>>(
 		})
 
 		actualRenderFunc = () => {
-			console.log('render')
 			const props = options.onFrame()
 
 			if (!props) {
