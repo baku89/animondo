@@ -55,11 +55,11 @@ const recordStartFrame = 0
 const recordEndFrame = 100
 
 async function startExport() {
-	if (!exportDirectoryHandle.value) {
-		exportDirectoryHandle.value = await (window as any).showDirectoryPicker({
-			mode: 'readwrite',
-		})
-	}
+	// if (!exportDirectoryHandle.value) {
+	exportDirectoryHandle.value = await (window as any).showDirectoryPicker({
+		mode: 'readwrite',
+	})
+	// }
 
 	audio.start()
 	isExporting = true
@@ -140,16 +140,60 @@ useRegl<Uniforms>(canvas, {
 		// Wait for audio to start
 		await audio.waitForPlay()
 
-		// Start the timer
-		useIntervalFn(() => {
+		async function onFrame() {
 			if (currentFrame % 8 === 0 && currentFrame > 0) {
 				tileMap?.nextStep()
 			}
 			currentFrame += 1
-			videoTextureArray?.setFrame(currentFrame % 8)
+			await videoTextureArray?.setFrame(currentFrame % 8)
 
 			render()
-		}, 1000 / 8.8)
+		}
+
+		// Start the timer
+		if (!isExporting) {
+			// Preview mode - use setInterval for async function
+			const intervalId = setInterval(async () => {
+				onFrame()
+			}, 1000 / 8.8)
+
+			// Clean up on unmount
+			onUnmounted(() => {
+				clearInterval(intervalId)
+			})
+		} else {
+			setTimeout(async () => {
+				for (let i = recordStartFrame; i < recordEndFrame; i++) {
+					console.log('Exporting frame', i)
+
+					await onFrame()
+
+					// Export frame
+					if (exportDirectoryHandle.value && canvas.value) {
+						try {
+							const fileHandle =
+								await exportDirectoryHandle.value.getFileHandle(
+									'frame_' + i.toString().padStart(4, '0') + '.png',
+									{create: true}
+								)
+							const writable = await fileHandle.createWritable()
+
+							// Convert canvas to blob and write to file
+							const blob = await new Promise<Blob | null>(resolve => {
+								canvas.value?.toBlob(resolve, 'image/png')
+							})
+
+							if (blob) {
+								await writable.write(blob)
+								await writable.close()
+							}
+						} catch (error) {
+							console.error('Error exporting frame', i, error)
+						}
+					}
+				}
+			}, 10)
+		}
 
 		return {
 			resolution(context: Regl.DefaultContext) {
