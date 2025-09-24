@@ -1,12 +1,7 @@
 <template>
 	<main>
-		<button v-if="!audio.hasStarted.value" @click="audio.start">
-			Tap To Start<br />
-			<div class="small">
-				Osaka EXPO EU-Japan Animation Residency<br />
-				Collaborative Project
-			</div>
-		</button>
+		<button v-if="!audio.hasStarted.value" @click="audio.start">Preview</button>
+		<button v-if="!audio.hasStarted.value" @click="startExport">Export</button>
 		<canvas ref="canvas" class="canvas" />
 	</main>
 </template>
@@ -22,6 +17,7 @@ import {useIntervalFn} from '@vueuse/core'
 import {mat2d, mat3, scalar} from 'linearly'
 import * as Patterns from '~/utils/patterns'
 import {useKawachiAudio} from '~/composables/useKawachiAudio'
+import {useIDBKeyval} from '@vueuse/integrations/useIDBKeyval'
 
 const canvas = useTemplateRef('canvas')
 
@@ -50,6 +46,24 @@ let tileMap: TileMap | null = null
 
 let isFirstLoop = true
 let currentFrame = 0
+
+const {data: exportDirectoryHandle} =
+	useIDBKeyval<FileSystemDirectoryHandle | null>('export-directory', null)
+
+let isExporting = false
+const recordStartFrame = 0
+const recordEndFrame = 100
+
+async function startExport() {
+	if (!exportDirectoryHandle.value) {
+		exportDirectoryHandle.value = await (window as any).showDirectoryPicker({
+			mode: 'readwrite',
+		})
+	}
+
+	audio.start()
+	isExporting = true
+}
 
 const [a, b, c, d, tx, ty] =
 	mat2d.invert(
