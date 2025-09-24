@@ -18,6 +18,7 @@ import {mat2d, mat3, scalar} from 'linearly'
 import * as Patterns from '~/utils/patterns'
 import {useKawachiAudio} from '~/composables/useKawachiAudio'
 import {useIDBKeyval} from '@vueuse/integrations/useIDBKeyval'
+import {range} from 'lodash-es'
 
 const canvas = useTemplateRef('canvas')
 
@@ -75,6 +76,10 @@ const [a, b, c, d, tx, ty] =
 	) ?? mat2d.ident
 
 const navMatrix = [a, b, 0, c, d, 0, tx, ty, 1] as mat3.Mutable
+
+function sleep(ms: number) {
+	return new Promise(resolve => setTimeout(resolve, ms))
+}
 
 // Initialize Regl with fullscreen quad (manual rendering mode)
 useRegl<Uniforms>(canvas, {
@@ -153,9 +158,7 @@ useRegl<Uniforms>(canvas, {
 		// Start the timer
 		if (!isExporting) {
 			// Preview mode - use setInterval for async function
-			const intervalId = setInterval(async () => {
-				onFrame()
-			}, 1000 / 8.8)
+			const intervalId = setInterval(onFrame, 1000 / 8.8)
 
 			// Clean up on unmount
 			onUnmounted(() => {
@@ -163,25 +166,25 @@ useRegl<Uniforms>(canvas, {
 			})
 		} else {
 			setTimeout(async () => {
-				for (let i = recordStartFrame; i < recordEndFrame; i++) {
+				for (const i of range(recordStartFrame, recordEndFrame)) {
 					console.log('Exporting frame', i)
 
-					await onFrame()
+					await onFrame() // Use finishRender for accurate export
 
 					// Export frame
 					if (exportDirectoryHandle.value && canvas.value) {
 						try {
+							// Convert canvas to blob and write to file
+							const blob = await new Promise<Blob | null>(resolve => {
+								canvas.value?.toBlob(resolve, 'image/png')
+							})
+
 							const fileHandle =
 								await exportDirectoryHandle.value.getFileHandle(
 									'frame_' + i.toString().padStart(4, '0') + '.png',
 									{create: true}
 								)
 							const writable = await fileHandle.createWritable()
-
-							// Convert canvas to blob and write to file
-							const blob = await new Promise<Blob | null>(resolve => {
-								canvas.value?.toBlob(resolve, 'image/png')
-							})
 
 							if (blob) {
 								await writable.write(blob)
