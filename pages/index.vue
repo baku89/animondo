@@ -52,7 +52,6 @@ let tileMap: TileMap | null = null
 // Initialize ZUI for navigation
 const zui = useZUI(canvas)
 
-let isFirstLoop = true
 let currentFrame = 0
 
 // Initialize Regl with fullscreen quad
@@ -114,21 +113,17 @@ useRegl<Uniforms>(canvas, {
 			}
 		})
 
-		// Start the timer
-		useIntervalFn(() => {
-			if (currentFrame === 0) {
-				if (isFirstLoop) {
-					isFirstLoop = false
-				} else {
-					tileMap?.nextStep()
-				}
-			}
-			currentFrame = scalar.mod(currentFrame + 1, 8)
-			videoTextureArray?.setFrame(currentFrame)
-		}, 1000 / 8.8)
-
 		// Wait for audio to start
 		await audio.waitForPlay()
+
+		// Start the timer
+		useIntervalFn(() => {
+			if (currentFrame % 8 === 0 && currentFrame > 0) {
+				tileMap?.nextStep()
+			}
+			currentFrame += 1
+			videoTextureArray?.setFrame(currentFrame % 8)
+		}, 1000 / 8.8)
 
 		return {
 			resolution(context: Regl.DefaultContext) {
