@@ -1,6 +1,7 @@
+import {vec2} from 'linearly'
 import type Regl from 'regl'
 import {Array2D} from './Array2D'
-import type {MovePattern} from './patterns'
+import {MovePattern} from './patterns'
 import {Direction, moveToTileDisplay, tileDisplayToColorValue} from './tile'
 
 interface TileMapOptions {
@@ -8,6 +9,11 @@ interface TileMapOptions {
 	width: number
 	height: number
 	numberOfVideos: number
+	generateTileInfo?: (
+		step: number,
+		pos: vec2,
+		bornCount: number
+	) => {index: number; flipVertical: boolean}
 }
 
 const HonamiIndex = 5
@@ -26,6 +32,18 @@ function interpolateMovePattens(
 	})
 }
 
+type TileInfoGenerator = (
+	step: number,
+	pos: vec2,
+	bornCount: number
+) => {index: number; flipVertical: boolean}
+
+export type PatternGenerator = Generator<
+	MovePattern | {move: MovePattern; tileInfoGenerator: TileInfoGenerator},
+	void,
+	void
+>
+
 /**
  * タイルの状態や、シェーダー用のマップテクスチャを管理する
  */
@@ -40,9 +58,12 @@ export class TileMap {
 	/** OpenGL用のタイル情報をカラー値として保存したテクスチャ。 */
 	#texture: Regl.Texture2D
 
-	#patternGenerator: Generator<MovePattern, never, void> | null = null
+	#patternGenerator: PatternGenerator | null = null
 	#currentPattern: MovePattern | null = null
 	#nextPattern: MovePattern | null = null
+	#generateTileInfo: TileMapOptions['generateTileInfo']
+	#step = 0
+	#totalBornCount = 0
 
 	/** 各タイルのビデオインデックス */
 	#tileInfo: Array2D<{index: number; flipVertical: boolean}>
@@ -51,12 +72,20 @@ export class TileMap {
 		this.width = options.width
 		this.height = options.height
 		this.numberOfVideos = options.numberOfVideos
+		this.#generateTileInfo =
+			options.generateTileInfo ??
+			(() => {
+				return {
+					index: randomInt(0, this.numberOfVideos - 1),
+					flipVertical: false,
+				}
+			})
 
 		this.#pixels = new Uint8Array(this.width * this.height * 3)
 		this.#tileInfo = new Array2D({
 			width: this.width,
 			height: this.height,
-			initialize: this.#generateTileInfoRandomly,
+			initialize: () => this.#generateTileInfo!(0, vec2.zero, 0),
 		})
 
 		this.#texture = this.options.regl.texture({
@@ -70,20 +99,11 @@ export class TileMap {
 		})
 	}
 
-	#generateTileInfoRandomly = () => {
-		return {
-			index: randomInt(0, this.numberOfVideos - 1),
-			flipVertical: false,
-		}
-	}
-
 	get texture(): Regl.Texture2D {
 		return this.#texture
 	}
 
-	setMovePattern(
-		patternGeneratorFn: () => Generator<MovePattern, never, void>
-	) {
+	setMovePattern(patternGeneratorFn: () => PatternGenerator) {
 		this.#patternGenerator = patternGeneratorFn()
 
 		// ジェネレーターから最初の2つのパターンを取得してキャッシュ
@@ -94,13 +114,23 @@ export class TileMap {
 			throw new Error('Pattern generator must yield at least 2 patterns')
 		}
 
-		this.#currentPattern = firstResult.value
-		this.#nextPattern = secondResult.value
+		this.#currentPattern =
+			firstResult.value instanceof MovePattern
+				? firstResult.value
+				: firstResult.value.move
+		this.#nextPattern =
+			secondResult.value instanceof MovePattern
+				? secondResult.value
+				: secondResult.value.move
 
 		// 初期状態は遷移パターン (0-1) から開始
 		this.#currentPattern = interpolateMovePattens(
-			firstResult.value,
-			secondResult.value
+			firstResult.value instanceof MovePattern
+				? firstResult.value
+				: firstResult.value.move,
+			secondResult.value instanceof MovePattern
+				? secondResult.value
+				: secondResult.value.move
 		)
 
 		this.#updateTexture()
@@ -111,6 +141,19 @@ export class TileMap {
 	 * ステップ: 0-1, 1-2, 2-3, 3-4, ...
 	 */
 	nextStep() {
+		if (!this.#patternGenerator || !this.#nextPattern) return
+
+		const patternGeneratorResult = this.#patternGenerator.next()
+		let nextPattern: MovePattern | undefined
+		if (patternGeneratorResult.value instanceof Array2D) {
+			nextPattern = patternGeneratorResult.value
+		} else if (patternGeneratorResult.value) {
+			nextPattern = patternGeneratorResult.value.move
+			this.#generateTileInfo = patternGeneratorResult.value.tileInfoGenerator
+		} else {
+			return
+		}
+
 		// Update indices based on current pattern
 		const previousPattern = this.#currentPattern
 
@@ -153,26 +196,32 @@ export class TileMap {
 					return info
 				}
 
-				// どこからも流入していないときはランダムに
-				return this.#generateTileInfoRandomly()
+				if (nextPattern.get(x, y).out !== Direction.None) {
+					// どこからも流入しておらず、かつ次の手で流出する方向があるということは、新たに誕生する
+					return this.#generateTileInfo!(
+						this.#step,
+						[x, y],
+						this.#totalBornCount++
+					)
+				} else {
+					// 流入もせず、流出もしないので、現状をそのまま帰す
+					return tileInfo.get(x, y)
+				}
 			})
 		}
 
-		if (!this.#patternGenerator || !this.#nextPattern) return
+		this.#step += 1
 
-		// 常にトランジション: currentStep → currentStep+1
-		const nextPattern = this.#patternGenerator.next()
-
-		if (nextPattern.done) {
+		if (patternGeneratorResult.done) {
 			return
 		}
 
 		this.#currentPattern = interpolateMovePattens(
 			this.#nextPattern,
-			nextPattern.value
+			nextPattern
 		)
 
-		this.#nextPattern = nextPattern.value
+		this.#nextPattern = nextPattern
 
 		this.#updateTexture()
 	}

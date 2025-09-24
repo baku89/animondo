@@ -11,16 +11,17 @@ import type Regl from 'regl'
 import {useRegl} from '~/composables/useRegl'
 import {useVideoTextureArray} from '~/composables/useVideoTextureArray'
 import TileFragmentShader from '~/components/shaders/tile.frag?raw'
-import {type MovePattern} from '~/utils/patterns'
 import {TileMap} from '~/utils/TileMap'
 import {useIntervalFn} from '@vueuse/core'
-import {mat2d, mat3, scalar} from 'linearly'
+import {mat2d, mat3, vec2} from 'linearly'
 import * as Patterns from '~/utils/patterns'
 import {useKawachiAudio} from '~/composables/useKawachiAudio'
 import {useIDBKeyval} from '@vueuse/integrations/useIDBKeyval'
 import {range} from 'lodash-es'
 
 const canvas = useTemplateRef('canvas')
+
+const exportResolution: vec2 = vec2.scale([1920, 1920], 2)
 
 // Define uniforms interface
 interface Uniforms {
@@ -53,16 +54,17 @@ const {data: exportDirectoryHandle} =
 
 let isExporting = false
 const recordStartFrame = 0
-const recordEndFrame = 100
+const recordEndFrame = 616
 
 async function startExport() {
-	// if (!exportDirectoryHandle.value) {
-	exportDirectoryHandle.value = await (window as any).showDirectoryPicker({
-		mode: 'readwrite',
-	})
-	// }
+	if (!exportDirectoryHandle.value) {
+		exportDirectoryHandle.value = await (window as any).showDirectoryPicker({
+			mode: 'readwrite',
+		})
+	}
 
 	audio.start()
+	audio.stop()
 	isExporting = true
 }
 
@@ -85,7 +87,7 @@ function sleep(ms: number) {
 useRegl<Uniforms>(canvas, {
 	frag: TileFragmentShader,
 	enableRaf: false, // Disable automatic RAF
-	size: [1920, 1920],
+	size: exportResolution,
 	async onInit(regl, render) {
 		// Load video texture
 		videoTextureArray = useVideoTextureArray(regl, [
@@ -107,17 +109,33 @@ useRegl<Uniforms>(canvas, {
 			regl,
 			...Patterns.size,
 			numberOfVideos: 10,
+			generateTileInfo: (step, pos, bornCount) => {
+				return {
+					index: bornCount % 7,
+					flipVertical: false,
+				}
+			},
 		})
+		// Pattern generator function (always returns c)
+		tileMap.setMovePattern(function* () {
+			// while (true) {
+			// 	yield Patterns.rightAppearVanish
+			// }
 
-		// パターンジェネレーター関数（常にcを返す）
-		tileMap.setMovePattern(function* (): Generator<MovePattern, never, void> {
 			yield Patterns.empty
 			yield Patterns.empty
 			yield Patterns.empty
-			// だんだん広がる
-			for (let i = 0; i < Patterns.size.width / 2; i++) {
-				yield Patterns.radialMask(Patterns.clockwise, i)
-			}
+
+			// Gradually expanding
+			yield Patterns.radialMask(Patterns.clockwise, 0)
+			yield Patterns.radialMask(Patterns.clockwise, 1)
+			yield Patterns.radialMask(Patterns.clockwise, 2)
+			yield Patterns.radialMask(Patterns.clockwise, 3)
+			yield Patterns.radialMask(Patterns.clockwise, 4)
+
+			yield Patterns.clockwise
+			yield Patterns.clockwise
+			yield Patterns.clockwise
 
 			while (true) {
 				yield Patterns.clockwise
@@ -129,6 +147,9 @@ useRegl<Uniforms>(canvas, {
 				yield Patterns.leftRight
 				yield Patterns.rightLeft
 
+				yield Patterns.clockwise
+				yield Patterns.clockwise
+
 				yield Patterns.up
 				yield Patterns.right
 				yield Patterns.down
@@ -136,14 +157,93 @@ useRegl<Uniforms>(canvas, {
 				yield Patterns.down
 				yield Patterns.right
 				yield Patterns.up
+				yield Patterns.left
 
-				yield Patterns.clockwise
-				yield Patterns.clockwise
+				yield* Patterns.offsetGenerators([0, -2], function* () {
+					yield Patterns.counterClockwise
+					yield Patterns.counterClockwise
+					yield Patterns.gather
+					yield Patterns.gather
+					yield Patterns.scatter
+					yield Patterns.scatter
+					yield Patterns.horizontalScatter
+					yield Patterns.verticalScatter
+					yield Patterns.horizontalScatter
+				})()
+
+				yield Patterns.smallClockwise
+				yield Patterns.smallClockwise
+				yield Patterns.offset(Patterns.invert(Patterns.smallClockwise), [1, 1])
+
+				yield* Patterns.offsetGenerators([0, -2], function* () {
+					yield Patterns.clockwise
+					yield Patterns.clockwise
+					yield Patterns.gather
+					yield Patterns.scatter
+					yield Patterns.clockwise
+					yield Patterns.clockwise
+				})()
+
+				yield Patterns.rightAppearVanish
+				yield Patterns.rightAppearVanish
+				yield Patterns.rightAppearVanish
+				yield Patterns.rightAppearVanish
+				yield Patterns.rightAppearVanish
+				yield Patterns.rightAppearVanish
+				yield Patterns.rightAppearVanish
+				yield Patterns.rightAppearVanish
+
+				yield* Patterns.offsetGenerators([0, -2], function* () {
+					yield Patterns.verticalScatter
+					yield Patterns.verticalScatter
+					yield Patterns.verticalScatter
+
+					const rightLeft = new Array2D<Move>({
+						...Patterns.size,
+						initialize(x, y) {
+							return y >= 8
+								? {in: Direction.Right, out: Direction.Left}
+								: {in: Direction.Left, out: Direction.Right}
+						},
+					})
+
+					yield rightLeft
+					yield rightLeft
+					yield upDown
+					yield downUp
+					yield Patterns.verticalScatter
+					yield Patterns.verticalScatter
+					yield Patterns.verticalScatter
+					yield Patterns.verticalScatter
+
+					yield Patterns.clockwise
+					yield Patterns.clockwise
+					yield Patterns.clockwise
+					yield Patterns.clockwise
+					yield Patterns.clockwise
+				})()
+
+				yield* Patterns.offsetGenerators([8, -2], function* () {
+					yield Patterns.radialMask(Patterns.clockwise, 7)
+					yield Patterns.radialMask(Patterns.clockwise, 6)
+					yield Patterns.radialMask(Patterns.clockwise, 5)
+					yield Patterns.radialMask(Patterns.clockwise, 4)
+					yield Patterns.radialMask(Patterns.clockwise, 3)
+					yield Patterns.radialMask(Patterns.clockwise, 2)
+					yield Patterns.radialMask(Patterns.clockwise, 1)
+					yield Patterns.radialMask(Patterns.clockwise, 0)
+				})()
+
+				while (true) {
+					yield Patterns.empty
+				}
 			}
 		})
 
 		// Wait for audio to start
-		await audio.waitForPlay()
+		if (!isExporting) {
+			await audio.waitForPlay()
+		}
 
 		async function onFrame() {
 			if (currentFrame % 8 === 0 && currentFrame > 0) {
@@ -158,18 +258,18 @@ useRegl<Uniforms>(canvas, {
 		// Start the timer
 		if (!isExporting) {
 			// Preview mode - use setInterval for async function
-			const intervalId = setInterval(onFrame, 1000 / 8.8)
-
-			// Clean up on unmount
-			onUnmounted(() => {
-				clearInterval(intervalId)
-			})
+			useIntervalFn(onFrame, 1000 / 8.8)
 		} else {
 			setTimeout(async () => {
-				for (const i of range(recordStartFrame, recordEndFrame)) {
-					console.log('Exporting frame', i)
-
+				for (const i of range(0, recordEndFrame)) {
 					await onFrame() // Use finishRender for accurate export
+
+					if (i < recordStartFrame) {
+						await new Promise(resolve => requestAnimationFrame(resolve))
+						continue
+					}
+
+					console.log('Exporting frame', i)
 
 					// Export frame
 					if (exportDirectoryHandle.value && canvas.value) {
@@ -309,7 +409,8 @@ button
 	position fixed
 	top 0
 	border 1px solid red
+	margin -1px
 	box-sizing content-box
-	width 1920px
-	height 1920px
+	width 100vmin
+	height 100vmin
 </style>
