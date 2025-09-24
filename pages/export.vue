@@ -76,10 +76,12 @@ const [a, b, c, d, tx, ty] =
 
 const navMatrix = [a, b, 0, c, d, 0, tx, ty, 1] as mat3.Mutable
 
-// Initialize Regl with fullscreen quad
+// Initialize Regl with fullscreen quad (manual rendering mode)
 useRegl<Uniforms>(canvas, {
 	frag: TileFragmentShader,
-	async onInit(regl) {
+	enableRaf: false, // Disable automatic RAF
+	size: [1920, 1920],
+	async onInit(regl, render) {
 		// Load video texture
 		videoTextureArray = useVideoTextureArray(regl, [
 			'sprites/noemie.mp4',
@@ -135,21 +137,19 @@ useRegl<Uniforms>(canvas, {
 			}
 		})
 
-		// Start the timer
-		useIntervalFn(() => {
-			if (currentFrame === 0) {
-				if (isFirstLoop) {
-					isFirstLoop = false
-				} else {
-					tileMap?.nextStep()
-				}
-			}
-			currentFrame = scalar.mod(currentFrame + 1, 8)
-			videoTextureArray?.setFrame(currentFrame)
-		}, 1000 / 8.8)
-
 		// Wait for audio to start
 		await audio.waitForPlay()
+
+		// Start the timer
+		useIntervalFn(() => {
+			if (currentFrame % 8 === 0 && currentFrame > 0) {
+				tileMap?.nextStep()
+			}
+			currentFrame += 1
+			videoTextureArray?.setFrame(currentFrame % 8)
+
+			render()
+		}, 1000 / 8.8)
 
 		return {
 			resolution(context: Regl.DefaultContext) {
@@ -262,6 +262,7 @@ button
 	position fixed
 	top 0
 	border 1px solid red
+	box-sizing content-box
 	width 1920px
 	height 1920px
 </style>

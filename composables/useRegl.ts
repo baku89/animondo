@@ -1,15 +1,15 @@
 import {useResizeObserver, whenever} from '@vueuse/core'
+import type {vec2} from 'linearly'
 import Regl from 'regl'
 
 import DefaultVertexShader from '~/components/shaders/default.vert?raw'
 
 interface UseReglOptions<Uniforms extends Record<string, any>> {
 	frag: string
-	onInit: (regl: Regl.Regl) => Promise<Record<string, any>>
-	onFrame: (
-		context: Regl.DefaultContext
-	) => Partial<Uniforms> | null | undefined
-	onInitialDraw?: () => void
+	enableRaf?: boolean
+	size?: vec2 | null
+	onInit: (regl: Regl.Regl, render: () => void) => Promise<Record<string, any>>
+	onFrame: () => Partial<Uniforms> | null | undefined
 }
 
 export function useRegl<Uniforms extends Record<string, any>>(
@@ -17,6 +17,13 @@ export function useRegl<Uniforms extends Record<string, any>>(
 	options: UseReglOptions<Uniforms>
 ) {
 	let regl: Regl.Regl | null = null
+	const {enableRaf = true, size = null} = options
+
+	let actualRenderFunc: (() => void) | null = null
+
+	const render = () => {
+		actualRenderFunc?.()
+	}
 
 	whenever(canvas, async canvas => {
 		if (regl) {
@@ -31,7 +38,7 @@ export function useRegl<Uniforms extends Record<string, any>>(
 			},
 		})
 
-		const uniforms = await options.onInit(regl)
+		const uniforms = await options.onInit(regl, render)
 
 		const draw = regl({
 			frag: options.frag,
@@ -47,10 +54,9 @@ export function useRegl<Uniforms extends Record<string, any>>(
 			uniforms,
 		})
 
-		let initialDraw = true
-
-		regl.frame(context => {
-			const props = options.onFrame(context)
+		actualRenderFunc = () => {
+			console.log('render')
+			const props = options.onFrame()
 
 			if (!props) {
 				return
@@ -61,22 +67,24 @@ export function useRegl<Uniforms extends Record<string, any>>(
 			})
 
 			draw(props)
-
-			if (initialDraw) {
-				initialDraw = false
-				options.onInitialDraw?.()
-			}
-		})
-
-		// Resize
-		useResizeObserver(canvas, resizeCanvas)
-
-		function resizeCanvas() {
-			const dpi = window.devicePixelRatio
-			canvas.width = canvas.clientWidth * dpi
-			canvas.height = canvas.clientHeight * dpi
 		}
 
-		resizeCanvas()
+		if (enableRaf) {
+			regl.frame(actualRenderFunc)
+		} else {
+			regl.frame(() => {})
+		}
+
+		// Resize
+		if (!size) {
+			useResizeObserver(canvas, () => {
+				const dpi = window.devicePixelRatio
+				canvas.width = canvas.clientWidth * dpi
+				canvas.height = canvas.clientHeight * dpi
+			})
+		} else {
+			canvas.width = size[0]
+			canvas.height = size[1]
+		}
 	})
 }
