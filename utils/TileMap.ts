@@ -72,7 +72,7 @@ export class TileMap {
 
 	#generateTileInfoRandomly = () => {
 		return {
-			index: Math.floor(Math.random() * this.numberOfVideos),
+			index: randomInt(0, this.numberOfVideos - 1),
 			flipVertical: false,
 		}
 	}
