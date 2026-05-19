@@ -1,12 +1,25 @@
 <template>
 	<main>
-		<button v-if="!audio.hasStarted.value" @click="audio.start">
-			Tap To Start<br />
+		<button
+			v-if="!audio.hasStarted.value"
+			class="start-button"
+			@click="audio.start"
+		>
+			{{ t('tap.title') }}<br />
 			<div class="small">
-				Osaka EXPO EU-Japan Animation Residency<br />
-				Collaborative Project
+				{{ t('tap.subtitle.line1') }}<br />
+				{{ t('tap.subtitle.line2') }}
 			</div>
 		</button>
+		<button
+			class="about-button"
+			:aria-label="t('about.button.label')"
+			:title="t('about.button.label')"
+			@click="aboutOpen = true"
+		>
+			?
+		</button>
+		<AboutModal :open="aboutOpen" @close="aboutOpen = false" />
 		<canvas ref="canvas" class="canvas" />
 	</main>
 </template>
@@ -43,6 +56,9 @@ interface Uniforms {
 }
 
 const audio = useKawachiAudio()
+const {t} = useI18n()
+
+const aboutOpen = ref(false)
 
 let videoTextureArray: ReturnType<typeof useVideoTextureArray> | null = null
 let tileMap: TileMap | null = null
@@ -200,7 +216,7 @@ main
 	width 100vw
 	height 100svh
 
-button
+.start-button
 	border none
 	color black
 	font-size 2rem
@@ -223,6 +239,30 @@ button
 
 		.small
 			color white
+
+.about-button
+	position fixed
+	top 1rem
+	right 1rem
+	width 2.5rem
+	height 2.5rem
+	display flex
+	align-items center
+	justify-content center
+	padding 0
+	border 2px solid black
+	border-radius 50%
+	background white
+	color black
+	font-size 1.25rem
+	font-weight bold
+	line-height 1
+	cursor pointer
+	z-index 20
+
+	&:hover
+		background black
+		color white
 
 
 .canvas
