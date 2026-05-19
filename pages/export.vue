@@ -7,17 +7,19 @@
 </template>
 
 <script setup lang="ts">
+import {useIntervalFn} from '@vueuse/core'
+import {useIDBKeyval} from '@vueuse/integrations/useIDBKeyval'
+import type { mat3} from 'linearly';
+import {mat2d, vec2} from 'linearly'
+import { range} from 'lodash-es'
 import type Regl from 'regl'
+
+import TileFragmentShader from '~/components/shaders/tile.frag?raw'
+import {useKawachiAudio} from '~/composables/useKawachiAudio'
 import {useRegl} from '~/composables/useRegl'
 import {useVideoTextureArray} from '~/composables/useVideoTextureArray'
-import TileFragmentShader from '~/components/shaders/tile.frag?raw'
-import {TileMap} from '~/utils/TileMap'
-import {useIntervalFn} from '@vueuse/core'
-import {mat2d, mat3, vec2} from 'linearly'
 import * as Patterns from '~/utils/patterns'
-import {useKawachiAudio} from '~/composables/useKawachiAudio'
-import {useIDBKeyval} from '@vueuse/integrations/useIDBKeyval'
-import {range} from 'lodash-es'
+import {TileMap} from '~/utils/TileMap'
 
 const canvas = useTemplateRef('canvas')
 
@@ -46,7 +48,6 @@ const audio = useKawachiAudio()
 let videoTextureArray: ReturnType<typeof useVideoTextureArray> | null = null
 let tileMap: TileMap | null = null
 
-let isFirstLoop = true
 let currentFrame = 0
 
 const {data: exportDirectoryHandle} =
@@ -92,29 +93,38 @@ useRegl<Uniforms>(canvas, {
 		// Load video texture
 		videoTextureArray = useVideoTextureArray(regl, [
 			'sprites/noemie.mp4',
-			'sprites/baku.mp4',
+			'sprites/sander.mp4',
 			'sprites/sumito.mp4',
 			'sprites/masa.mp4',
 			'sprites/edmunds.mp4',
 			'sprites/honami.mp4',
 			'sprites/shinobu.mp4',
+			'sprites/baku.mp4',
 			'sprites/laura.mp4',
 			'sprites/lucija.mp4',
-			'sprites/sander.mp4',
 		])
 		await videoTextureArray.load()
+
+		function defaultGenerator(step: number, pos: vec2, bornCount: number) {
+			return {
+				index: bornCount % 8,
+				flipVertical: false,
+			}
+		}
+
+		function diagonalGenerator(step: number, [x, y]: vec2, bornCount: number) {
+			return {
+				index: ((y % 8) + x * 1 + step * 5) % 8,
+				flipVertical: false,
+			}
+		}
 
 		// Initialize tile map
 		tileMap = new TileMap({
 			regl,
 			...Patterns.size,
 			numberOfVideos: 10,
-			generateTileInfo: (step, pos, bornCount) => {
-				return {
-					index: bornCount % 7,
-					flipVertical: false,
-				}
-			},
+			generateTileInfo: defaultGenerator,
 		})
 		// Pattern generator function (always returns c)
 		tileMap.setMovePattern(function* () {
@@ -133,8 +143,14 @@ useRegl<Uniforms>(canvas, {
 			yield Patterns.radialMask(Patterns.clockwise, 3)
 			yield Patterns.radialMask(Patterns.clockwise, 4)
 
-			yield Patterns.clockwise
-			yield Patterns.clockwise
+			yield {
+				move: Patterns.clockwise,
+				tileInfoGenerator: diagonalGenerator,
+			}
+			yield {
+				move: Patterns.clockwise,
+				tileInfoGenerator: defaultGenerator,
+			}
 			yield Patterns.clockwise
 
 			while (true) {
@@ -194,9 +210,13 @@ useRegl<Uniforms>(canvas, {
 				yield Patterns.rightAppearVanish
 
 				yield* Patterns.offsetGenerators([0, -2], function* () {
-					yield Patterns.verticalScatter
-					yield Patterns.verticalScatter
-					yield Patterns.verticalScatter
+					const vs = {
+						move: Patterns.verticalScatter,
+						tileInfoGenerator: diagonalGenerator,
+					}
+					yield vs
+					yield vs
+					yield vs
 
 					const rightLeft = new Array2D<Move>({
 						...Patterns.size,
@@ -211,10 +231,10 @@ useRegl<Uniforms>(canvas, {
 					yield rightLeft
 					yield upDown
 					yield downUp
-					yield Patterns.verticalScatter
-					yield Patterns.verticalScatter
-					yield Patterns.verticalScatter
-					yield Patterns.verticalScatter
+					yield vs
+					yield vs
+					yield vs
+					yield vs
 
 					yield Patterns.clockwise
 					yield Patterns.clockwise
@@ -258,7 +278,7 @@ useRegl<Uniforms>(canvas, {
 		// Start the timer
 		if (!isExporting) {
 			// Preview mode - use setInterval for async function
-			useIntervalFn(onFrame, 1000 / 8.8)
+			useIntervalFn(onFrame, 1000 / 20)
 		} else {
 			setTimeout(async () => {
 				for (const i of range(0, recordEndFrame)) {

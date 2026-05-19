@@ -12,17 +12,17 @@
 </template>
 
 <script setup lang="ts">
+import {useIntervalFn} from '@vueuse/core'
 import type Regl from 'regl'
+
+import TileFragmentShader from '~/components/shaders/tile.frag?raw'
+import {useKawachiAudio} from '~/composables/useKawachiAudio'
 import {useRegl} from '~/composables/useRegl'
 import {useVideoTextureArray} from '~/composables/useVideoTextureArray'
-import TileFragmentShader from '~/components/shaders/tile.frag?raw'
-import {type MovePattern} from '~/utils/patterns'
-import {TileMap} from '~/utils/TileMap'
-import {useIntervalFn} from '@vueuse/core'
-import {scalar} from 'linearly'
 import {useZUI} from '~/composables/useZUI'
+import type {MovePattern} from '~/utils/patterns'
 import * as Patterns from '~/utils/patterns'
-import {useKawachiAudio} from '~/composables/useKawachiAudio'
+import {TileMap} from '~/utils/TileMap'
 
 const canvas = useTemplateRef('canvas')
 

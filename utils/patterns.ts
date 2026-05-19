@@ -1,7 +1,8 @@
 import {vec2} from 'linearly'
+
 import {Array2D} from './Array2D'
 import {Direction, type Move} from './tile'
-import {type PatternGenerator} from './TileMap'
+import type {PatternGenerator} from './TileMap'
 
 // パターンを表すクラス
 export type MovePattern = Array2D<Move>

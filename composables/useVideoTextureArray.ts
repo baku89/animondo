@@ -1,4 +1,5 @@
 import type Regl from 'regl'
+
 import {useVideoTexture} from './useVideoTexture'
 
 export function useVideoTextureArray(regl: Regl.Regl, videoSources: string[]) {

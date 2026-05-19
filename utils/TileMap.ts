@@ -1,5 +1,6 @@
 import {vec2} from 'linearly'
 import type Regl from 'regl'
+
 import {Array2D} from './Array2D'
 import {MovePattern} from './patterns'
 import {Direction, moveToTileDisplay, tileDisplayToColorValue} from './tile'
