@@ -37,8 +37,6 @@ interface Uniforms {
 	video5: Regl.Texture2D
 	video6: Regl.Texture2D
 	video7: Regl.Texture2D
-	video8: Regl.Texture2D
-	video9: Regl.Texture2D
 	tileMap: Regl.Texture2D
 	tileMapSize: Regl.Vec2
 	navMatrix: Regl.Mat3
@@ -59,6 +57,9 @@ useRegl<Uniforms>(canvas, {
 	frag: TileFragmentShader,
 	async onInit(regl) {
 		// Load video texture
+		// Active artist sprites. Laura and Lucija may rejoin later — when
+		// they do, append their entries here, bump numberOfVideos, and
+		// extend the shader/uniforms (video8/video9).
 		videoTextureArray = useVideoTextureArray(regl, [
 			'sprites/noemie.mp4',
 			'sprites/baku.mp4',
@@ -67,9 +68,9 @@ useRegl<Uniforms>(canvas, {
 			'sprites/edmunds.mp4',
 			'sprites/honami.mp4',
 			'sprites/shinobu.mp4',
-			'sprites/laura.mp4',
-			'sprites/lucija.mp4',
 			'sprites/sander.mp4',
+			// 'sprites/laura.mp4',
+			// 'sprites/lucija.mp4',
 		])
 		await videoTextureArray.load()
 
@@ -77,7 +78,7 @@ useRegl<Uniforms>(canvas, {
 		tileMap = new TileMap({
 			regl,
 			...Patterns.size,
-			numberOfVideos: 10,
+			numberOfVideos: 8,
 		})
 
 		// パターンジェネレーター関数（常にcを返す）
@@ -137,8 +138,6 @@ useRegl<Uniforms>(canvas, {
 			video5: regl.prop<Uniforms, 'video5'>('video5'),
 			video6: regl.prop<Uniforms, 'video6'>('video6'),
 			video7: regl.prop<Uniforms, 'video7'>('video7'),
-			video8: regl.prop<Uniforms, 'video8'>('video8'),
-			video9: regl.prop<Uniforms, 'video9'>('video9'),
 			tileMap: regl.prop<Uniforms, 'tileMap'>('tileMap'),
 			tileMapSize: [tileMap.width, tileMap.height],
 			navMatrix: regl.prop<Uniforms, 'navMatrix'>('navMatrix'),
@@ -154,8 +153,6 @@ useRegl<Uniforms>(canvas, {
 			video5,
 			video6,
 			video7,
-			video8,
-			video9,
 		] = videoTextureArray?.textureArray.value ?? []
 
 		if (
@@ -167,8 +164,6 @@ useRegl<Uniforms>(canvas, {
 			!video5 ||
 			!video6 ||
 			!video7 ||
-			!video8 ||
-			!video9 ||
 			!tileMap
 		)
 			return null
@@ -182,8 +177,6 @@ useRegl<Uniforms>(canvas, {
 			video5,
 			video6,
 			video7,
-			video8,
-			video9,
 			tileMap: tileMap.texture,
 			navMatrix: zui.inverseMatrix.value,
 		}

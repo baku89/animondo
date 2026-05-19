@@ -6,12 +6,13 @@
 
 ## プロジェクト概要
 
-EU–日本 アニメーション・レジデンシー（大阪万博 2025）の共同制作プロジェクト。10 人の作家が同じテンプレートに従って手描きアニメーション素材を提出し、それらをセル・オートマトン的に組み合わせて「アニメーションの音頭（=Animondo）」を生成する Web 作品。
+EU–日本 アニメーション・レジデンシー（大阪万博 2025）の共同制作プロジェクト。8 人の作家が同じテンプレートに従って手描きアニメーション素材を提出し、それらをセル・オートマトン的に組み合わせて「アニメーションの音頭（=Animondo）」を生成する Web 作品。
 
 - 公開タイトル: **Animondo**
 - 公開先: GitHub Pages（baseURL: `/animondo/`）
 - BGM: `public/kawachiondo.mp3`（河内音頭）— 8.8 fps のステップとほぼ同期させている
-- 参加作家: noemie / baku / sumito / masa / edmunds / honami / shinobu / laura / lucija / sander の 10 名
+- 参加作家（現状 active）: noemie / baku / sumito / masa / edmunds / honami / shinobu / sander の 8 名
+- laura / lucija は将来再参加する可能性あり（`pages/index.vue` にコメントアウト済みの placeholder あり）
 
 ### コア・コンセプト：手描きアニメを FSM として扱う
 
@@ -59,8 +60,7 @@ yarn build       # nuxt build（通常は generate で十分）
 ├── app.vue                      # <NuxtPage/> のみ
 ├── nuxt.config.ts               # baseURL=/animondo/, SSR=false, glslify
 ├── pages/
-│   ├── index.vue                # ★ 本番ビュー: インタラクティブ (ZUI付き)
-│   └── export.vue               # ★ 書き出しビュー: 静止画フレームを PNG で連番出力
+│   └── index.vue                # ★ 本番ビュー: インタラクティブ (ZUI付き)
 ├── components/shaders/
 │   ├── default.vert             # 全画面クアッド頂点シェーダ
 │   └── tile.frag                # ★ メインのフラグメントシェーダ
@@ -78,7 +78,7 @@ yarn build       # nuxt build（通常は generate で十分）
 │   └── randomInt.ts
 ├── public/
 │   ├── kawachiondo.mp3          # BGM
-│   └── sprites/{artist}.mp4     # ★ 各作家の素材（10 本、3×2 グリッド × 8 frames）
+│   └── sprites/{artist}.mp4     # ★ 各作家の素材（8 本、3×2 グリッド × 8 frames）
 ├── assets/style.styl            # グローバル CSS
 └── .github/workflows/deploy.yml # main push で GH Pages にデプロイ
 ```
@@ -113,7 +113,7 @@ yarn build       # nuxt build（通常は generate で十分）
 
 - サイズ: `Patterns.size.width × Patterns.size.height` = **16×16**（`utils/patterns.ts` 末尾の `size` 定数で変更可）
 - フォーマット: RGB / uint8 / nearest / repeat
-- R チャネル: ビデオインデックス（0..9）
+- R チャネル: ビデオインデックス（0..7、最大 0..9 までエンコード可）
 - G チャネル: ビット詰め `__FRRTTT`
     - bits 0–2: Tile enum（None=0..Death=6）
     - bits 3–4: 回転（0..3 = 0°/90°/180°/270°）
@@ -128,16 +128,11 @@ yarn build       # nuxt build（通常は generate で十分）
 
 ### ナビゲーション（ZUI）
 
-- `index.vue`: `useZUI` がピンチ/ドラッグ/ホイールでカメラ行列を作り、`navMatrix` として送る
-- `export.vue`: 固定ビュー（`mat2d.scaling(2) * translation(-0.5) * scaling(1/width)` の逆行列を直書き）
-
-シェーダ側はトロイダル（`Array2D.get` がモジュロ）なので、ZUI でどこまでパンしても画面が埋まり続ける。
+`index.vue`: `useZUI` がピンチ/ドラッグ/ホイールでカメラ行列を作り、`navMatrix` として送る。シェーダ側はトロイダル（`Array2D.get` がモジュロ）なので、ZUI でどこまでパンしても画面が埋まり続ける。
 
 ---
 
-## 2 つのエントリポイント
-
-ブランチでの切り分けではなく、**`pages/` 配下のページで用途別に分けている**。
+## エントリポイント
 
 ### `pages/index.vue` — 本番ビュー（インタラクティブ）
 - 画面ぴったりにキャンバスを敷く、`useZUI` でズーム/パン操作可能
@@ -145,14 +140,7 @@ yarn build       # nuxt build（通常は generate で十分）
 - `useIntervalFn(..., 1000 / 8.8)` で常時更新（RAF はキャンバスサイズに同期）
 - パターンシーケンスはここで完結している（`tileMap.setMovePattern(function*() { ... })`）
 
-### `pages/export.vue` — 書き出しビュー
-- 解像度を **3840×3840** に固定（`exportResolution = vec2.scale([1920,1920], 2)`）
-- `enableRaf: false` で RAF を切り、`render()` を手動で叩いて 1 フレームずつ描画
-- `showDirectoryPicker`（File System Access API）でローカルフォルダを選択 → `frame_0000.png` 連番で書き出し
-- 選択したディレクトリハンドルは IndexedDB（`useIDBKeyval('export-directory')`）に保存して次回も使い回す
-- `index.vue` とは別のパターンシーケンスを持っている（より長尺・実験的な構成）
-
-**注意**: 現状 `export.vue` のジェネレータには `import` されていない `Array2D` / `Move` / `Direction` / `upDown` / `downUp` などへの参照が含まれている。これは内側の `while (true) { yield Patterns.empty }` で到達不能になっている死コードだが、TypeScript の strict なチェックを通す段では修正が必要。
+> 過去にあった `pages/export.vue`（PNG 連番書き出し用ビュー）は現在 `video-export` ブランチに退避してある。再開したい場合はそちらを参照。
 
 ---
 
@@ -182,7 +170,7 @@ yarn build       # nuxt build（通常は generate で十分）
 
 1. `utils/patterns.ts` に `export const myPattern = new Array2D<Move>({...size, initialize: ... })` を足す。
 2. 必要なら `invert(myPattern)` で双対も足す。
-3. `pages/index.vue` または `pages/export.vue` の `tileMap.setMovePattern(function* () {...})` 内で `yield Patterns.myPattern` する。
+3. `pages/index.vue` の `tileMap.setMovePattern(function* () {...})` 内で `yield Patterns.myPattern` する。
 4. パターンが「途切れず」連結されるかは `TileMap.interpolateMovePattens` 任せ。前ステップの `out` と次ステップの `in` が **同じ向き** になるよう設計すると違和感が消える。
 
 ---
@@ -202,14 +190,14 @@ nextStep() ごとに:
 ### 個別作家ハック
 
 - **honami** （`HonamiIndex = 5`）: `neighbourMove.in === neighbourMove.out` のとき `flipVertical` をトグル。彼女の素材だけ「同方向で通り抜ける」とき表示が反転する仕様（手描きの向きを補正している）。
-- **generateTileInfo**: デフォルトはランダムな videoIndex（10 作家から 1 名選ぶ）。`export.vue` では `defaultGenerator`（生まれ順 % 8）や `diagonalGenerator`（座標と step から index を決める）に差し替えて、見え方を制御できる。`tileInfoGenerator` はパターン yield と同時に切り替え可能（`yield {move, tileInfoGenerator}` 形式）。
+- **generateTileInfo**: デフォルトはランダムな videoIndex（8 作家から 1 名選ぶ）。`tileInfoGenerator` をパターン yield と同時に切り替え可能（`yield {move, tileInfoGenerator}` 形式）で、生まれ順や座標・step から index を決める実装を差し替えられる。
 
 ---
 
 ## ビデオ素材まわり
 
 - **fps**: ソース 12 fps を想定（`useVideoTexture.setFrame(n, fps=12)` で `currentTime = n/12` にシーク）
-- **同期**: `setFrame` は `requestAnimationFrame` で `currentTime` の収束を待ってから `texture.subimage()` を叩く。シークの待ちが詰まるとガクつくので、本番表示と書き出し時の挙動が変わる原因になりがち
+- **同期**: `setFrame` は `requestAnimationFrame` で `currentTime` の収束を待ってから `texture.subimage()` を叩く。シークの待ちが詰まるとガクつく
 - **配信パス**: `useVideoTexture` の `videoElement.src = '/animondo/' + videoSrc` で baseURL を直書きしている。dev サーバ（baseURL なし）でも GH Pages（baseURL=`/animondo/`）でも同じ URL を使うために固定。**baseURL を変える場合はここも要修正**
 
 ---
@@ -218,9 +206,7 @@ nextStep() ごとに:
 
 ユーザーが目指す方向は **Web サイト = インタラクティブなアニメーション作品** への昇華。検討対象の例：
 
-- [ ] index.vue / export.vue で重複しているシーケンスを 1 つにまとめ、URL クエリやモード切替で出し分け
-- [ ] `export.vue` の死コード（未 import の `Array2D` / `Direction` 等）の整理
-- [ ] ビデオ 10 本を並列 seek している部分のパフォーマンス改善（`useVideoTexture.setFrame` の `requestAnimationFrame` 待ちが直列化要因）
+- [ ] ビデオ 8 本を並列 seek している部分のパフォーマンス改善（`useVideoTexture.setFrame` の `requestAnimationFrame` 待ちが直列化要因）
 - [ ] スプライトのフォーマット（mp4 → WebP アニメ or 静止画スプライトシート）の検討
 - [ ] UI: 「Tap To Start」だけの一発キックではなく、テンポ・パターン・参加作家を選べるインタラクション
 - [ ] モバイルでのタッチ（pinch zoom）操作の使い心地
