@@ -104,6 +104,16 @@ export class TileMap {
 		return this.#texture
 	}
 
+	/** The interpolated pattern governing the current 8-frame step */
+	get currentPattern(): MovePattern | null {
+		return this.#currentPattern
+	}
+
+	/** Tile info at the given cell (coordinates are wrapped toroidally) */
+	getTileInfo(x: number, y: number): {index: number; flipVertical: boolean} {
+		return this.#tileInfo.get(x, y)
+	}
+
 	setMovePattern(patternGeneratorFn: () => PatternGenerator) {
 		this.#patternGenerator = patternGeneratorFn()
 

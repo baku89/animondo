@@ -21,6 +21,28 @@
 		</button>
 		<AboutModal :open="aboutOpen" @close="aboutOpen = false" />
 		<canvas ref="canvas" class="canvas" />
+		<Transition name="bubble">
+			<div v-if="selectedArtist" class="profile-bubble" :style="bubbleStyle">
+				<button
+					class="profile-bubble__close"
+					:aria-label="t('about.close')"
+					@click="deselect"
+				>
+					×
+				</button>
+				<a
+					class="profile-bubble__name"
+					:href="selectedArtist.url"
+					target="_blank"
+					rel="noopener"
+				>
+					{{ selectedArtist.name[locale] }}
+				</a>
+				<div class="profile-bubble__text">
+					{{ selectedArtist.profile[locale] }}
+				</div>
+			</div>
+		</Transition>
 	</main>
 </template>
 
@@ -33,8 +55,10 @@ import {useKawachiAudio} from '~/composables/useKawachiAudio'
 import {useRegl} from '~/composables/useRegl'
 import {useVideoTextureArray} from '~/composables/useVideoTextureArray'
 import {useZUI} from '~/composables/useZUI'
+import {ARTISTS} from '~/utils/artists'
 import type {MovePattern} from '~/utils/patterns'
 import * as Patterns from '~/utils/patterns'
+import {Direction} from '~/utils/tile'
 import {TileMap} from '~/utils/TileMap'
 
 const canvas = useTemplateRef('canvas')
@@ -56,7 +80,7 @@ interface Uniforms {
 }
 
 const audio = useKawachiAudio()
-const {t} = useI18n()
+const {t, locale} = useI18n()
 
 const aboutOpen = ref(false)
 
@@ -67,6 +91,93 @@ let tileMap: TileMap | null = null
 const zui = useZUI(canvas)
 
 let currentFrame = 0
+
+// --- Character selection & follow ---
+
+// Cell coordinates are kept unwrapped so the camera pans continuously
+// across the toroidal seam; wrap only when looking up the pattern/tiles.
+const selection = ref<{cell: [number, number]; artistIndex: number} | null>(
+	null
+)
+
+const selectedArtist = computed(() =>
+	selection.value ? ARTISTS[selection.value.artistIndex] : null
+)
+
+const bubbleStyle = computed(() => {
+	const offset = Math.min(
+		Math.max(zui.pixelsPerCell.value * 0.55 + 12, 60),
+		window.innerHeight * 0.35
+	)
+	return {bottom: `calc(50% + ${offset}px)`}
+})
+
+function deselect() {
+	selection.value = null
+	zui.followTarget.value = null
+}
+
+// Panning cancels the follow inside useZUI; drop the bubble too
+watch(zui.followTarget, target => {
+	if (!target) selection.value = null
+})
+
+zui.onTap((clientX, clientY) => {
+	if (!tileMap || !audio.hasStarted.value) return
+
+	const world = zui.screenToWorld(clientX, clientY)
+	const cell: [number, number] = [Math.floor(world[0]), Math.floor(world[1])]
+
+	const move = tileMap.currentPattern?.get(cell[0], cell[1])
+
+	if (move && (move.in !== Direction.None || move.out !== Direction.None)) {
+		selection.value = {
+			cell,
+			artistIndex: tileMap.getTileInfo(cell[0], cell[1]).index,
+		}
+		zui.followTarget.value = [cell[0] + 0.5, cell[1] + 0.5]
+	} else {
+		deselect()
+	}
+})
+
+const DIRECTION_DELTA: Partial<Record<Direction, [number, number]>> = {
+	[Direction.Up]: [0, -1],
+	[Direction.Right]: [1, 0],
+	[Direction.Down]: [0, 1],
+	[Direction.Left]: [-1, 0],
+}
+
+// Move the tracked cell along the pattern's out direction. Must be called
+// with the pattern that governed the step which is just ending, i.e. right
+// BEFORE tileMap.nextStep().
+function advanceSelection() {
+	const sel = selection.value
+	if (!sel || !tileMap) return
+
+	const move = tileMap.currentPattern?.get(sel.cell[0], sel.cell[1])
+	const delta = move ? DIRECTION_DELTA[move.out] : undefined
+
+	if (!delta) {
+		// The character vanished (or the cell went silent)
+		deselect()
+		return
+	}
+
+	sel.cell = [sel.cell[0] + delta[0], sel.cell[1] + delta[1]]
+	zui.followTarget.value = [sel.cell[0] + 0.5, sel.cell[1] + 0.5]
+}
+
+// After nextStep(), make sure the tracked cell still hosts the same artist —
+// converging patterns (e.g. gather) can overwrite it with another character.
+function verifySelection() {
+	const sel = selection.value
+	if (!sel || !tileMap) return
+
+	if (tileMap.getTileInfo(sel.cell[0], sel.cell[1]).index !== sel.artistIndex) {
+		deselect()
+	}
+}
 
 // Initialize Regl with fullscreen quad
 useRegl<Uniforms>(canvas, {
@@ -136,7 +247,9 @@ useRegl<Uniforms>(canvas, {
 		// Start the timer
 		useIntervalFn(() => {
 			if (currentFrame % 8 === 0 && currentFrame > 0) {
+				advanceSelection()
 				tileMap?.nextStep()
+				verifySelection()
 			}
 			currentFrame += 1
 			videoTextureArray?.setFrame(currentFrame % 8)
@@ -275,4 +388,63 @@ main
 	-webkit-user-select none
 	-moz-user-select none
 	-ms-user-select none
+
+.profile-bubble
+	position fixed
+	left 50%
+	transform translateX(-50%)
+	z-index 15
+	max-width min(20rem, 85vw)
+	padding 0.75rem 1.5rem
+	border 2px solid black
+	border-radius 1rem
+	background white
+	text-align center
+	line-height 1.5
+
+	// Tail pointing down toward the followed character
+	&::after
+		content ''
+		position absolute
+		bottom -8px
+		left 50%
+		width 14px
+		height 14px
+		background white
+		border-right 2px solid black
+		border-bottom 2px solid black
+		transform translateX(-50%) rotate(45deg)
+
+	&__close
+		position absolute
+		top 0.25rem
+		right 0.5rem
+		padding 0 0.25rem
+		font-size 1.25rem
+		line-height 1.4
+		cursor pointer
+
+		&:hover
+			opacity 0.6
+
+	&__name
+		display inline-block
+		font-size 1.25rem
+		cursor pointer
+
+		&:hover
+			text-decoration underline
+
+	&__text
+		margin-top 0.25rem
+		font-size 0.85rem
+		color gray
+		text-align left
+
+.bubble-enter-active, .bubble-leave-active
+	transition opacity 0.25s ease, translate 0.25s ease
+
+.bubble-enter-from, .bubble-leave-to
+	opacity 0
+	translate 0 0.5rem
 </style>
