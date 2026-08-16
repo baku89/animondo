@@ -12,6 +12,8 @@ const messages = {
 			'noemie · baku · sumito · masa · edmunds · honami · shinobu · sander',
 		'about.music.label': 'Music',
 		'about.music.value': 'Kawachi Ondo (traditional Japanese folk music)',
+		'about.type.label': 'Typefaces',
+		'about.type.value': 'BBB Sprat by Ethan Nakache & Bye Bye Binary',
 		'about.close': 'Close',
 	},
 	ja: {
@@ -27,6 +29,8 @@ const messages = {
 			'noemie · baku · sumito · masa · edmunds · honami · shinobu · sander',
 		'about.music.label': '音楽',
 		'about.music.value': '河内音頭',
+		'about.type.label': '書体',
+		'about.type.value': 'BBB Sprat（Ethan Nakache & Bye Bye Binary）',
 		'about.close': '閉じる',
 	},
 } as const

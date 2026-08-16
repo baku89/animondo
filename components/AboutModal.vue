@@ -33,6 +33,8 @@
 						<dd>{{ t('about.artists.list') }}</dd>
 						<dt>{{ t('about.music.label') }}</dt>
 						<dd>{{ t('about.music.value') }}</dd>
+						<dt>{{ t('about.type.label') }}</dt>
+						<dd>{{ t('about.type.value') }}</dd>
 					</dl>
 				</div>
 			</div>
@@ -69,7 +71,6 @@ onKeyStroke('Escape', () => {
 		width 100%
 		max-width 36rem
 		color black
-		font-family system-ui, -apple-system, sans-serif
 		line-height 1.7
 
 	&__header
