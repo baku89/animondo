@@ -4,7 +4,7 @@ export function useKawachiAudio() {
 
 	const hasStarted = ref(false)
 
-	const playPromise = Promise.withResolvers<void>()
+	const playPromise: PromiseWithResolvers<void> = Promise.withResolvers()
 
 	return {
 		start: async () => {

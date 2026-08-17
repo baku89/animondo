@@ -5,7 +5,11 @@ import {Direction, type Move} from './tile'
 import type {PatternGenerator} from './TileMap'
 
 // パターンを表すクラス
+// Type + value companion: TileMap needs `instanceof MovePattern` to tell a
+// bare pattern from a {move, tileInfoGenerator} yield. TS keeps type and
+// value in separate declaration spaces, but ESLint's no-redeclare does not.
 export type MovePattern = Array2D<Move>
+// eslint-disable-next-line no-redeclare
 export const MovePattern = Array2D
 
 function move(_in: Direction, out: Direction): Move {
@@ -70,7 +74,6 @@ export function rotate90(pattern: Array2D<Move>): Array2D<Move> {
 			size.width / 2 - 0.5,
 			size.height / 2 - 0.5,
 		])
-		console.log(x, y)
 		return rotate90Move(pattern.get(x, y))
 	})
 }
@@ -245,7 +248,7 @@ export const rightAppearVanish = new Array2D<Move>({
 
 export const upDown = new Array2D<Move>({
 	...size,
-	initialize: (x, y) => {
+	initialize: x => {
 		if (x % 2 === 0) {
 			return {in: Direction.Down, out: Direction.Up}
 		}
@@ -269,7 +272,7 @@ export const rightLeft = invert(leftRight)
 
 export const down = new Array2D<Move>({
 	...size,
-	initialize: (x, y) => {
+	initialize: () => {
 		return {in: Direction.Up, out: Direction.Down}
 	},
 })
@@ -278,7 +281,7 @@ export const up = invert(down)
 
 export const right = new Array2D<Move>({
 	...size,
-	initialize: (x, y) => {
+	initialize: () => {
 		return {in: Direction.Left, out: Direction.Right}
 	},
 })
@@ -287,7 +290,7 @@ export const left = invert(right)
 
 export const empty = new Array2D<Move>({
 	...size,
-	initialize: (x, y) => {
+	initialize: () => {
 		return {in: Direction.None, out: Direction.None}
 	},
 })

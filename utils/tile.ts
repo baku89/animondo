@@ -116,7 +116,8 @@ type TileDisplayColorValue = readonly [
 export function tileDisplayToColorValue(
 	tileDisplay: TileDisplay
 ): TileDisplayColorValue {
-	let {index, flipVertical, tile, rotation} = tileDisplay
+	const {index, flipVertical, rotation} = tileDisplay
+	let {tile} = tileDisplay
 
 	if (flipVertical) {
 		if (tile === Tile.Up) {
