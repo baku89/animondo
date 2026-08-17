@@ -1,6 +1,7 @@
 ---
 name: Masa Kudo
 url: https://masakudo.wordpress.com/
+source: https://animation.hiroshimafest.org/en/program/00001950/ https://animation.hiroshimafest.org/program/00001929/
 ---
 
 Working on the themes of time, space and memory, she animates frame by

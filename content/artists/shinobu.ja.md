@@ -1,6 +1,7 @@
 ---
 name: 副島しのぶ
 url: https://www.shinobusoejima.com/
+source: https://animation.hiroshimafest.org/program/00001929/
 ---
 
 米や肉、昆虫といった有機物とパペットを用い、ストップモーション作品や

@@ -1,6 +1,7 @@
 ---
 name: ノエミ・マルシリ
 url: https://noemiemarsily.tumblr.com/
+source: https://animation.hiroshimafest.org/program/00001929/ https://trickywomen.at/en/artistinresidence/no%C3%A9mie-marsily
 ---
 
 ブリュッセルのサン・リュックでイラストレーションを学び、コミック・

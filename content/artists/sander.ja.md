@@ -1,6 +1,7 @@
 ---
-name: サンデル・ヨーン
+name: サンダー・ヨン
 url: https://sanderjoon.com/
+source: https://animation.hiroshimafest.org/program/00001929/
 ---
 
 エストニアの映画監督。『Velodrool』『Moulinet』『Sounds Good』、そして

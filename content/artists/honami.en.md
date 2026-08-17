@@ -1,6 +1,7 @@
 ---
 name: Honami Yano
 url: https://honamiyano.com/
+source: https://animation.hiroshimafest.org/en/program/00001950/
 ---
 
 Born in 1991 on a small island in the Seto Inland Sea, Ehime. _A Bite of

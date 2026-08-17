@@ -1,6 +1,7 @@
 ---
 name: Sumito Sakakibara
 url: https://sumitosakakibara.com
+source: https://animation.hiroshimafest.org/en/program/00001950/
 ---
 
 Born in 1980 in Tokachi, Hokkaido; based in the northern foothills of

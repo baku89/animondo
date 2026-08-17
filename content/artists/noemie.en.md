@@ -1,6 +1,7 @@
 ---
 name: Noémie Marsily
 url: https://noemiemarsily.tumblr.com/
+source: https://animation.hiroshimafest.org/en/program/00001950/ https://trickywomen.at/en/artistinresidence/no%C3%A9mie-marsily
 ---
 
 Trained in illustration at Saint-Luc in Brussels, Noémie Marsily is a

@@ -1,6 +1,7 @@
 ---
 name: 矢野ほなみ
 url: https://honamiyano.com/
+source: https://animation.hiroshimafest.org/program/00001929/
 ---
 
 1991年、愛媛県瀬戸内海の小島生まれ。『骨嚙み』（2021）が第45回オタワ

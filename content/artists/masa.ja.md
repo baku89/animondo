@@ -1,6 +1,7 @@
 ---
 name: 工藤雅
 url: https://masakudo.wordpress.com/
+source: https://animation.hiroshimafest.org/program/00001929/
 ---
 
 時間・空間・記憶をテーマに、ドローイングや8mmフィルム、サイアノタイプ

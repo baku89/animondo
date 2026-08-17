@@ -1,6 +1,7 @@
 ---
 name: Edmunds Jansons
 url: https://atomart.lv/
+source: https://animation.hiroshimafest.org/en/program/00001950/ https://www.filmneweurope.com/press-releases/item/126254-edmunds-jansons-leads-a-new-wave-of-animation-experimentation-through-music https://atomart.lv/en/born-in-the-jungle
 ---
 
 Born in 1972 in Saldus, Latvia — director, animator, book illustrator and

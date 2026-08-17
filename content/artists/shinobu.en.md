@@ -1,6 +1,7 @@
 ---
 name: Shinobu Soejima
 url: https://www.shinobusoejima.com/
+source: https://animation.hiroshimafest.org/en/program/00001950/
 ---
 
 Makes short stop-motion films, installations and sculptures from organic

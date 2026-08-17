@@ -1,6 +1,7 @@
 ---
 name: 榊原澄人
 url: https://sumitosakakibara.com
+source: https://animation.hiroshimafest.org/program/00001929/
 ---
 
 1980年北海道十勝生まれ、長野県北信山麓在住。15歳で渡英し、2004年に
