@@ -3,6 +3,8 @@ name: Noémie Marsily
 url: https://noemiemarsily.tumblr.com/
 ---
 
-Belgian illustrator, comics artist and animation filmmaker based in
-Brussels. Co-directed shorts with Carl Roosens; her solo film Ce qui
-bouge est vivant premiered in 2022.
+Trained in illustration at Saint-Luc in Brussels, Noémie Marsily is a
+multidisciplinary author working between comics, illustration and animated
+cinema. She published _Fétiche_ (2013) and _Memet_ (2019), and co-directs
+shorts with Carl Roosens. Her solo film _Ce qui bouge est vivant_ (2022)
+played over fifty festivals and won Best Belgian Short Film at Anima.

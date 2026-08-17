@@ -3,6 +3,8 @@ name: Shinobu Soejima
 url: https://www.shinobusoejima.com/
 ---
 
-Artist and stop-motion director based in Tokyo, animating puppets and
-organic materials such as rice, meat and insects. Special Mention,
-Ecumenical Jury at Oberhausen 2022.
+Makes short stop-motion films, installations and sculptures from organic
+materials — rice, meat, insects — alongside puppets, using the mechanics of
+animation to dissolve the boundary between the living and the non-living.
+Awards include a Special Mention from the Ecumenical Jury at the 68th
+Oberhausen and the Bronze Satoshi Kon Award at Fantasia.

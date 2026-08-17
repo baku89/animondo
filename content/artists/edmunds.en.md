@@ -3,6 +3,8 @@ name: Edmunds Jansons
 url: https://atomart.lv/
 ---
 
-Latvian animation director and illustrator, founder of Riga studio Atom
-Art. Directed Choir Tour and the feature Jacob, Mimmi and the Talking
-Dogs (2019).
+Born in 1972 in Saldus, Latvia — director, animator, book illustrator and
+founder of the Riga studio Atom Art. He completed Priit Pärn's masterclass
+at the Estonian Academy of Arts and teaches animation directing at the Art
+Academy of Latvia. His short _Freeride in C_ premiered at Ottawa, and the
+feature _Born in the Jungle_ is in production.

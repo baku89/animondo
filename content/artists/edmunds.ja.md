@@ -3,5 +3,8 @@ name: エドムンズ・ヤンソンス
 url: https://atomart.lv/
 ---
 
-ラトビアのアニメーション監督・イラストレーター。スタジオAtom Art創設者。
-短編『Choir Tour』、長編『Jacob, Mimmi and the Talking Dogs』を監督。
+1972年ラトビア・サルドゥス生まれ。監督・アニメーター・書籍イラスト
+レーターであり、リガのスタジオ Atom Art の創設者。エストニア芸術
+アカデミーでプリート・パルンのマスタークラスを修了し、ラトビア芸術
+アカデミーでアニメーション演出を教える。短編『Freeride in C』を
+オタワで初上映、長編『Born in the Jungle』を製作中。
