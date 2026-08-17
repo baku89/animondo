@@ -130,10 +130,11 @@ export function radialMask(
 
 export const horizontalGather = new Array2D<Move>({
 	...size,
-	initialize(ox, oy) {
-		let [x, y] = vec2.sub([ox, oy], [size.width / 2, size.height / 2])
+	initialize(ox) {
+		// Horizontal only, so the row plays no part — verticalGather is this
+		// pattern rotated 90°.
+		let x = ox - size.width / 2
 		if (x >= 0) x += 1
-		if (y >= 0) y += 1
 
 		if (Math.abs(x) <= 1) {
 			return x > 0
