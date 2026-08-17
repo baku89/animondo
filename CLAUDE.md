@@ -9,7 +9,8 @@
 EU–日本 アニメーション・レジデンシー（大阪万博 2025）の共同制作プロジェクト。8 人の作家が同じテンプレートに従って手描きアニメーション素材を提出し、それらをセル・オートマトン的に組み合わせて「アニメーションの音頭（=Animondo）」を生成する Web 作品。
 
 - 公開タイトル: **Animondo**
-- 公開先: GitHub Pages（baseURL: `/animondo/`）
+- 公開先: <https://x.baku89.com/animondo>（baseURL: `/animondo/`）
+- リポジトリ: `baku89/animondo`（private）
 - BGM: `public/kawachiondo.mp3`（河内音頭）— 8.8 fps のステップとほぼ同期させている
 - 参加作家（現状 active）: noemie / baku / sumito / masa / edmunds / honami / shinobu / sander の 8 名
 - laura / lucija は将来再参加する可能性あり（`pages/index.vue` にコメントアウト済みの placeholder あり）
@@ -80,7 +81,7 @@ yarn build       # nuxt build（通常は generate で十分）
 │   ├── kawachiondo.mp3          # BGM
 │   └── sprites/{artist}.mp4     # ★ 各作家の素材（8 本、3×2 グリッド × 8 frames）
 ├── assets/style.styl            # グローバル CSS
-└── .github/workflows/deploy.yml # main push で GH Pages にデプロイ
+└── .github/workflows/deploy.yml # main push で SFTP ミラー（後述）
 ```
 
 ★ = いじることが多い・概念的に重要なファイル。
@@ -198,7 +199,19 @@ nextStep() ごとに:
 
 - **fps**: ソース 12 fps を想定（`useVideoTexture.setFrame(n, fps=12)` で `currentTime = n/12` にシーク）
 - **同期**: `setFrame` は `requestAnimationFrame` で `currentTime` の収束を待ってから `texture.subimage()` を叩く。シークの待ちが詰まるとガクつく
-- **配信パス**: `useVideoTexture` の `videoElement.src = '/animondo/' + videoSrc` で baseURL を直書きしている。dev サーバ（baseURL なし）でも GH Pages（baseURL=`/animondo/`）でも同じ URL を使うために固定。**baseURL を変える場合はここも要修正**
+- **配信パス**: `useVideoTexture` の `videoElement.src = '/animondo/' + videoSrc` で baseURL を直書きしている。dev サーバ（baseURL なし）でも本番（baseURL=`/animondo/`）でも同じ URL を使うために固定。**baseURL を変える場合はここも要修正**
+
+---
+
+## デプロイ
+
+`baku89/corporate-poetry` と同じ方式。`main` への push（と `workflow_dispatch`）で `.github/workflows/deploy.yml` が走り、`yarn generate` の出力 `.output/public` を lftp で SFTP サーバへ **mirror** する。公開先は <https://x.baku89.com/animondo>。
+
+- `mirror --reverse --delete`: Nuxt はビルド毎にハッシュ付きアセット名を吐くので、`--delete` が無いと古い `_nuxt/*.js` がサーバに永久に残る
+- `concurrency: deploy-main` / `cancel-in-progress`: 連続 push で mirror が交錯しないよう常に 1 本だけ走らせる
+- 必要な Secrets（Repository → Settings → Secrets and variables → Actions）: `SFTP_HOST` / `SFTP_PORT`（省略時 22）/ `SFTP_USER` / `SFTP_PRIVATE_KEY` / `SFTP_REMOTE_DIR` / `SFTP_HOST_FINGERPRINT`（任意・未設定なら CI 中に `ssh-keyscan` で TOFU）
+
+ハマりどころは workflow の YAML 内コメントに全部書いてあるので、いじる前にそっちを読むのが早い（特に `open -u "$SFTP_USER,"` の末尾カンマ）。
 
 ---
 
