@@ -2,7 +2,7 @@ import {defineNuxtConfig} from 'nuxt/config'
 
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
-	modules: ['@nuxt/eslint', '@pinia/nuxt'],
+	modules: ['@nuxt/eslint'],
 	compatibilityDate: '2024-11-01',
 	devtools: {enabled: true},
 	ssr: false,
@@ -31,13 +31,6 @@ export default defineNuxtConfig({
 			},
 		},
 		assetsInclude: ['**/*.vert', '**/*.frag'],
-	},
-	typescript: {
-		tsConfig: {
-			compilerOptions: {
-				types: ['vite-plugin-glsl/ext'],
-			},
-		},
 	},
 	runtimeConfig: {
 		public: {},

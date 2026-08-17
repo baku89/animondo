@@ -59,7 +59,7 @@ yarn build       # nuxt build（通常は generate で十分）
 ```
 .
 ├── app.vue                      # <NuxtPage/> のみ
-├── nuxt.config.ts               # baseURL=/animondo/, SSR=false, glslify
+├── nuxt.config.ts               # baseURL=/animondo/, SSR=false, Typekit 埋め込み
 ├── pages/
 │   └── index.vue                # ★ 本番ビュー: インタラクティブ (ZUI付き)
 ├── components/shaders/
