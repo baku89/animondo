@@ -38,14 +38,14 @@
 				>
 					{{ selectedArtist.name[locale] }}
 				</a>
-				<div class="profile-bubble__text">
-					<p
-						v-for="(paragraph, i) in selectedArtist.profile[locale]"
-						:key="i"
-					>
-						{{ paragraph }}
-					</p>
-				</div>
+				<!-- Markdown rendered from content/artists/, authored in this
+					repo — no third-party input reaches this sink. -->
+				<!-- eslint-disable vue/no-v-html -->
+				<div
+					class="profile-bubble__text"
+					v-html="selectedArtist.profileHtml[locale]"
+				/>
+				<!-- eslint-enable vue/no-v-html -->
 			</div>
 		</Transition>
 	</main>
@@ -446,9 +446,28 @@ main
 		color gray
 		text-align left
 
-		// The global reset zeroes p margins, so space paragraphs explicitly
-		p + p
+		// Rendered markdown lands here, and the global reset has stripped the
+		// browser defaults these tags rely on — restore them locally.
+		p + p, ul, ol
 			margin-top 0.5em
+
+		ul, ol
+			padding-left 1.25em
+
+		li
+			list-style disc
+
+		ol > li
+			list-style decimal
+
+		strong
+			font-weight bold
+
+		a
+			text-decoration underline
+
+			&:hover
+				opacity 0.6
 
 .bubble-enter-active, .bubble-leave-active
 	transition opacity 0.25s ease, translate 0.25s ease

@@ -1,11 +1,13 @@
+import {marked} from 'marked'
+
 import type {Locale} from '~/composables/useI18n'
 
 export interface ArtistInfo {
 	id: string
 	name: Record<Locale, string>
 	url: Record<Locale, string>
-	/** Profile prose, one entry per paragraph. */
-	profile: Record<Locale, string[]>
+	/** Rendered markdown — injected with v-html, so keep the source trusted. */
+	profileHtml: Record<Locale, string>
 }
 
 // Video index order: public/sprites/{id}.mp4 is loaded in this order, and the
@@ -35,26 +37,55 @@ const sources = import.meta.glob('../content/artists/*.md', {
 interface ArtistDoc {
 	name: string
 	url: string
-	profile: string[]
+	profileHtml: string
 }
+
+// Profiles are read inside a running artwork, so a link must not navigate the
+// page away and tear down the animation and audio.
+marked.use({
+	renderer: {
+		link({href, title, tokens}) {
+			const label = this.parser.parseInline(tokens)
+			const titleAttr = title ? ` title="${title}"` : ''
+			return `<a href="${href}"${titleAttr} target="_blank" rel="noopener">${label}</a>`
+		},
+	},
+})
 
 const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/
 
 // Soft wraps inside a paragraph are a source-formatting choice, not content.
 // Latin text needs a space back where the line broke; Japanese must not get
-// one, or the bubble renders a gap mid-sentence.
+// one, or the bubble renders a gap mid-sentence. Markdown itself keeps the
+// break, and HTML would collapse it to a space, so this has to happen before
+// the source reaches the renderer.
 const CJK =
 	/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\u3000-\u303f\uff00-\uffef]/u
 
-function unwrap(paragraph: string): string {
-	return paragraph.split(/\r?\n/).reduce((joined, rawLine) => {
-		const line = rawLine.trim()
-		if (!line) return joined
-		if (!joined) return line
+// A line opening a markdown block stays on its own line \u2014 folding these into
+// the line above would turn a list into one run-on paragraph. A line that does
+// NOT open a block still joins upward, which is markdown's lazy continuation
+// and keeps wrapped list items tight.
+const BLOCK_START = /^(?:[-*+>#|]|\d+[.)]|```|~~~)/
 
-		const glue = CJK.test(joined.slice(-1)) || CJK.test(line[0]) ? '' : ' '
-		return joined + glue + line
-	}, '')
+function unwrapSoftBreaks(block: string): string {
+	const lines: string[] = []
+
+	for (const rawLine of block.split(/\r?\n/)) {
+		const line = rawLine.trim()
+		if (!line) continue
+
+		const previous = lines.at(-1)
+		if (previous === undefined || BLOCK_START.test(line)) {
+			lines.push(line)
+			continue
+		}
+
+		const glue = CJK.test(previous.slice(-1)) || CJK.test(line[0]) ? '' : ' '
+		lines[lines.length - 1] = previous + glue + line
+	}
+
+	return lines.join('\n')
 }
 
 function parseDoc(source: string, path: string): ArtistDoc {
@@ -79,15 +110,16 @@ function parseDoc(source: string, path: string): ArtistDoc {
 	if (!name) throw new Error(`${path}: frontmatter is missing "name"`)
 	if (!url) throw new Error(`${path}: frontmatter is missing "url"`)
 
-	const profile = source
+	const body = source
 		.slice(matched[0].length)
 		.split(/\r?\n\s*\r?\n/)
-		.map(unwrap)
+		.map(unwrapSoftBreaks)
 		.filter(Boolean)
+		.join('\n\n')
 
-	if (profile.length === 0) throw new Error(`${path}: profile body is empty`)
+	if (!body) throw new Error(`${path}: profile body is empty`)
 
-	return {name, url, profile}
+	return {name, url, profileHtml: marked.parse(body, {async: false})}
 }
 
 function readDoc(id: string, locale: Locale): ArtistDoc {
@@ -107,6 +139,6 @@ export const ARTISTS: ArtistInfo[] = ARTIST_IDS.map(id => {
 		id,
 		name: {en: en.name, ja: ja.name},
 		url: {en: en.url, ja: ja.url},
-		profile: {en: en.profile, ja: ja.profile},
+		profileHtml: {en: en.profileHtml, ja: ja.profileHtml},
 	}
 })
