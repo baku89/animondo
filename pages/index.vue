@@ -125,20 +125,28 @@ watch(zui.followTarget, target => {
 zui.onTap((clientX, clientY) => {
 	if (!tileMap || !audio.hasStarted.value) return
 
+	// Light dismiss: while a bubble is open, the first tap anywhere only
+	// closes it — even when it lands on another character. Selecting that
+	// character takes a second, deliberate tap.
+	if (selection.value) {
+		deselect()
+		return
+	}
+
 	const world = zui.screenToWorld(clientX, clientY)
 	const cell: [number, number] = [Math.floor(world[0]), Math.floor(world[1])]
 
 	const move = tileMap.currentPattern?.get(cell[0], cell[1])
 
-	if (move && (move.in !== Direction.None || move.out !== Direction.None)) {
-		selection.value = {
-			cell,
-			artistIndex: tileMap.getTileInfo(cell[0], cell[1]).index,
-		}
-		zui.followTarget.value = [cell[0] + 0.5, cell[1] + 0.5]
-	} else {
-		deselect()
+	if (!move || (move.in === Direction.None && move.out === Direction.None)) {
+		return
 	}
+
+	selection.value = {
+		cell,
+		artistIndex: tileMap.getTileInfo(cell[0], cell[1]).index,
+	}
+	zui.followTarget.value = [cell[0] + 0.5, cell[1] + 0.5]
 })
 
 const DIRECTION_DELTA: Partial<Record<Direction, [number, number]>> = {
