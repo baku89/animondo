@@ -32,14 +32,19 @@
 				</button>
 				<a
 					class="profile-bubble__name"
-					:href="selectedArtist.url"
+					:href="selectedArtist.url[locale]"
 					target="_blank"
 					rel="noopener"
 				>
 					{{ selectedArtist.name[locale] }}
 				</a>
 				<div class="profile-bubble__text">
-					{{ selectedArtist.profile[locale] }}
+					<p
+						v-for="(paragraph, i) in selectedArtist.profile[locale]"
+						:key="i"
+					>
+						{{ paragraph }}
+					</p>
 				</div>
 			</div>
 		</Transition>
@@ -191,29 +196,21 @@ function verifySelection() {
 useRegl<Uniforms>(canvas, {
 	frag: TileFragmentShader,
 	async onInit(regl) {
-		// Load video texture
-		// Active artist sprites. Laura and Lucija may rejoin later — when
-		// they do, append their entries here, bump numberOfVideos, and
-		// extend the shader/uniforms (video8/video9).
-		videoTextureArray = useVideoTextureArray(regl, [
-			'sprites/noemie.mp4',
-			'sprites/baku.mp4',
-			'sprites/sumito.mp4',
-			'sprites/masa.mp4',
-			'sprites/edmunds.mp4',
-			'sprites/honami.mp4',
-			'sprites/shinobu.mp4',
-			'sprites/sander.mp4',
-			// 'sprites/laura.mp4',
-			// 'sprites/lucija.mp4',
-		])
+		// Load video textures. Sprite order follows ARTISTS so the index the
+		// tile map stores keeps addressing the same artist. Laura and Lucija
+		// may rejoin later — adding them to ARTIST_IDS pulls their sprite in
+		// too, but the shader still needs matching video8/video9 uniforms.
+		videoTextureArray = useVideoTextureArray(
+			regl,
+			ARTISTS.map(({id}) => `sprites/${id}.mp4`)
+		)
 		await videoTextureArray.load()
 
 		// Initialize tile map
 		tileMap = new TileMap({
 			regl,
 			...Patterns.size,
-			numberOfVideos: 8,
+			numberOfVideos: ARTISTS.length,
 		})
 
 		// パターンジェネレーター関数（常にcを返す）
@@ -448,6 +445,10 @@ main
 		font-size 0.85rem
 		color gray
 		text-align left
+
+		// The global reset zeroes p margins, so space paragraphs explicitly
+		p + p
+			margin-top 0.5em
 
 .bubble-enter-active, .bubble-leave-active
 	transition opacity 0.25s ease, translate 0.25s ease

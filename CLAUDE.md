@@ -76,7 +76,10 @@ yarn build       # nuxt build（通常は generate で十分）
 │   ├── TileMap.ts               # ★ オートマトン本体（状態保持＋シェーダ用テクスチャ更新）
 │   ├── patterns.ts              # ★ パターン辞書（clockwise / gather / scatter ほか）
 │   ├── Array2D.ts               # トロイダル 2D 配列ユーティリティ
+│   ├── artists.ts               # ★ 作家データのローダ（content/ の md をパース）
 │   └── randomInt.ts
+├── content/
+│   └── artists/{id}.{en,ja}.md  # ★ 作家プロフィール（後述）
 ├── public/
 │   ├── kawachiondo.mp3          # BGM
 │   └── sprites/{artist}.mp4     # ★ 各作家の素材（8 本、3×2 グリッド × 8 frames）
@@ -142,6 +145,38 @@ yarn build       # nuxt build（通常は generate で十分）
 - パターンシーケンスはここで完結している（`tileMap.setMovePattern(function*() { ... })`）
 
 > 過去にあった `pages/export.vue`（PNG 連番書き出し用ビュー）は現在 `video-export` ブランチに退避してある。再開したい場合はそちらを参照。
+
+---
+
+## 作家プロフィール（`content/artists/`）
+
+作家データは Markdown で管理する。1 作家 × 1 言語 = 1 ファイル：`content/artists/{id}.en.md` と `{id}.ja.md`。
+
+```markdown
+---
+name: ノエミ・マルシリ
+url: https://noemiemarsily.tumblr.com/
+---
+
+ブリュッセル拠点のイラストレーター・漫画家・アニメーション作家。
+カール・ルーセンスとの共同監督作を経て、2022年に単独監督作
+『Ce qui bouge est vivant』を発表。
+```
+
+- frontmatter は `key: value` の 1 行 1 項目のみ（`name` と `url` が必須）。YAML パーサは使っていないので、ネストや複数行値は非対応
+- 本文がプロフィール。**空行で段落**が分かれ、バブル内では `<p>` として描画される
+- 段落内の**改行はソース整形扱いで連結される**。連結時、境界の文字が CJK なら空白を入れず、そうでなければ空白 1 個を補う（日本語の行折り返しで不自然な空きが出ないようにするため）。`utils/artists.ts` の `unwrap` 参照
+- 本文は Markdown レンダリングされない（プレーンテキストとして表示）。強調やリンクを書いても記号のまま出る
+- `url` は言語ごとに別々に持てる（`ArtistInfo.url` は `Record<Locale, string>`）。同じ URL でよければ両ファイルに同じ値を書く
+
+### 作家を追加・削除するとき
+
+1. `content/artists/{id}.en.md` と `{id}.ja.md` を作る
+2. `utils/artists.ts` の `ARTIST_IDS` に `id` を追加する。**この配列の順序がビデオインデックス**で、`public/sprites/{id}.mp4` の読み込み順・`TileMap` が保持するインデックスと一致する
+3. スプライト `public/sprites/{id}.mp4` を置く（`pages/index.vue` は `ARTISTS` から自動でパスを組み立てる）
+4. 9 人目以降は `components/shaders/tile.frag` と `pages/index.vue` の `Uniforms` に `video8` … を足す必要がある
+
+ファイル欠損や frontmatter の書式ミスは、`utils/artists.ts` のモジュール読み込み時に例外を投げる（= dev サーバで即座に落ちる）。
 
 ---
 
