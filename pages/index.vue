@@ -114,7 +114,16 @@ const bubbleStyle = computed(() => {
 		Math.max(zui.pixelsPerCell.value * 0.55 + 12, 60),
 		window.innerHeight * 0.35
 	)
-	return {bottom: `calc(50% + ${offset}px)`}
+	// The bubble sits above the anchor, so the prose can only use what is
+	// left between the anchor and the top of the screen. Reserve room for the
+	// name, the padding and a little breathing space; scroll past that.
+	const CHROME = 96
+	const available = window.innerHeight * 0.5 - offset - CHROME
+
+	return {
+		bottom: `calc(50% + ${offset}px)`,
+		'--profile-max-height': `${Math.max(available, 120)}px`,
+	}
 })
 
 function deselect() {
@@ -445,6 +454,11 @@ main
 		font-size 0.85rem
 		color gray
 		text-align left
+		// Press-kit bios run long. Cap the prose rather than the bubble, so
+		// the name, the close button and the ::after tail all stay put.
+		max-height var(--profile-max-height, 20rem)
+		overflow-y auto
+		overscroll-behavior contain
 
 		// Rendered markdown lands here, and the global reset has stripped the
 		// browser defaults these tags rely on — restore them locally.

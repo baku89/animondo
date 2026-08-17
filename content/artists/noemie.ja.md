@@ -1,11 +1,7 @@
 ---
 name: ノエミ・マルシリ
 url: https://noemiemarsily.tumblr.com/
-source: https://animation.hiroshimafest.org/program/00001929/ https://trickywomen.at/en/artistinresidence/no%C3%A9mie-marsily
+source: https://animation.hiroshimafest.org/program/00001929/
 ---
 
-ブリュッセルのサン・リュックでイラストレーションを学び、コミック・
-イラストレーション・アニメーションを横断して活動する作家。
-『Fétiche』（2013）『Memet』（2019）を出版し、カール・ルーセンスとの
-共同監督作も多数。単独監督作『Ce qui bouge est vivant』（2022）は
-50を超える映画祭を巡回し、Anima でベルギー短編賞を受賞した。
+ブリュッセルのサン・リュックでイラストレーションを学び、現在多分野で活躍する作家・アーティスト。Les Requins Marteauxから『Fétiche』（2013年）、l'Employé du Moiから『Memet』（2019年）などのコミックを出版。カール・ルーセンスとともに、『Poodle』（2010）、『Around the Lake』（2013）、『I don't feel anything anymore』（2016）などの短編アニメーションを共同監督。彼女の芸術活動は、コミック、イラストレーション、アニメーション映画の間の出会いやプロジェクトを通じて、数年にわたり発展してきた。

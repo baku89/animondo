@@ -4,8 +4,4 @@ url: https://sanderjoon.com/
 source: https://animation.hiroshimafest.org/en/program/00001950/
 ---
 
-Estonian film director, known for the award-winning _Velodrool_,
-_Moulinet_, _Sounds Good_ and the Oscar-shortlisted _Sierra_ (2022). He has
-taught animation at the Estonian Academy of Arts, and in 2023 the Estonian
-president honoured him with the Young Cultural Figure award for his
-contribution to Estonian culture.
+Sander Joon, an Estonian film director, is known for award-winning animations Velodrool, Moulinet, Sounds Good, and the Oscars-shortlisted Sierra (2022). He also taught animation at the Estonian Academy of Arts. In 2023, he was honored with the Young Cultural Figure award by the Estonian president for his contributions to Estonian culture.
