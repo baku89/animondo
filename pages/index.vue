@@ -1,16 +1,11 @@
 <template>
 	<main>
-		<button
-			v-if="!audio.hasStarted.value"
-			class="start-button"
-			@click="audio.start"
-		>
-			{{ t('tap.title') }}<br />
-			<div class="small">
-				{{ t('tap.subtitle.line1') }}<br />
-				{{ t('tap.subtitle.line2') }}
-			</div>
-		</button>
+		<TitleSequence
+			v-if="titleVisible"
+			:ready="assetsReady"
+			@start="audio.start"
+			@done="titleVisible = false"
+		/>
 		<button
 			class="about-button"
 			:class="{'about-button--close': aboutOpen}"
@@ -89,6 +84,11 @@ const audio = useKawachiAudio()
 const {t, locale} = useI18n()
 
 const aboutOpen = ref(false)
+
+// The title writes itself in on load and wipes itself away once the visitor
+// starts the piece, at which point it is dropped for good.
+const titleVisible = ref(true)
+const assetsReady = ref(false)
 
 let videoTextureArray: ReturnType<typeof useVideoTextureArray> | null = null
 let tileMap: TileMap | null = null
@@ -256,6 +256,16 @@ useRegl<Uniforms>(canvas, {
 			}
 		})
 
+		// Only invite the visitor in once the sprites are decoded and the
+		// typefaces have settled, so the button never lands over a half-drawn
+		// stage. Fonts get a deadline: a Typekit outage should not leave the
+		// page with no way to start.
+		await Promise.race([
+			document.fonts?.ready ?? Promise.resolve(),
+			new Promise(resolve => setTimeout(resolve, 5000)),
+		])
+		assetsReady.value = true
+
 		// Wait for audio to start
 		await audio.waitForPlay()
 
@@ -343,30 +353,6 @@ main
 	left 0
 	width 100vw
 	height 100svh
-
-.start-button
-	border none
-	color black
-	font-size 2rem
-	cursor pointer
-	border 2px solid black
-	border-radius 1rem
-	padding 1rem
-	z-index 10
-	background white
-	line-height 1.5
-
-	.small
-		margin-top 0.5em
-		font-size 0.5em
-		color gray
-
-	&:hover
-		background black
-		color white
-
-		.small
-			color white
 
 .about-button
 	position fixed

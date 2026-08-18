@@ -80,8 +80,16 @@ yarn build       # nuxt build（通常は generate で十分）
 │   └── randomInt.ts
 ├── content/
 │   └── artists/{id}.{en,ja}.md  # ★ 作家プロフィール（後述）
+├── components/
+│   ├── AboutModal.vue           # ? ボタンで開く About
+│   └── TitleSequence.vue        # ★ タイトルアニメ＋再生ボタン（後述）
+├── videos/animondo_title.mov    # タイトルの元データ（qtrle/ARGB, 12fps, 49F）
+├── scripts/
+│   ├── build-title-sprite.sh    # .mov → public/title-sprite.webp
+│   └── title-sprite-bbox.py     # 上のスクリプトが使う crop 値を算出
 ├── public/
 │   ├── kawachiondo.mp3          # BGM
+│   ├── title-sprite.webp        # ★ タイトル 7×7 スプライト（838×214/コマ）
 │   └── sprites/{artist}.mp4     # ★ 各作家の素材（8 本、3×2 グリッド × 8 frames）
 ├── assets/style.styl            # グローバル CSS
 └── .github/workflows/deploy.yml # main push で SFTP ミラー（後述）
@@ -182,6 +190,37 @@ url: https://noemiemarsily.tumblr.com/
 4. 9 人目以降は `components/shaders/tile.frag` と `pages/index.vue` の `Uniforms` に `video8` … を足す必要がある
 
 ファイル欠損や frontmatter の書式ミスは、`utils/artists.ts` のモジュール読み込み時に例外を投げる（= dev サーバで即座に落ちる）。
+
+---
+
+## タイトルアニメーション（`components/TitleSequence.vue`）
+
+起動画面。`videos/animondo_title.mov`（qtrle/ARGB、12fps、49 フレーム）を **7×7 のスプライトシート** `public/title-sprite.webp` に変換して使う。`scripts/build-title-sprite.sh` で再生成できる。
+
+### なぜスプライトシートか
+
+素材は「黒インク＋アルファ」なので、情報はアルファ 1 チャンネルにしかない。二値に近いマスクは**空間圧縮が時間圧縮とほぼ同じくらい効く**ため、ロスレス WebP 285 KB に対して VP9 マスク動画は 181 KB —— 差は 100 KB 弱しかない。その差のためにインクの輪郭へリンギングを載せる意味がないので**ロスレス**。ソースのアルファと 1 ピクセルも違わないことを検証済み。
+
+加えて、アルファ付き動画は WebM/VP9（Safari 不可）と HEVC(hvc1)（Chrome 不可）で二重に用意する羽目になる。スプライトなら**その問題自体が発生しない**。フレーム seek も精度の問題が出ない（`useVideoTexture` の悩みがここには無い）。
+
+### 注意点
+
+- **アルファはシート自身が持つ**。CSS マスクにしてはいけない —— `mask-image` の既定は `mask-mode: alpha` で、不透明なグレースケールシートは「全面表示」と解釈され黒い塊になる（実際に一度踏んだ）
+- 描画は **canvas に 1 コマだけ `drawImage`**。`background-size: 700%` だと 5866×1498 のシート全体を「タイトルの 7 倍の箱」に合わせて拡大させることになり、DPR 2 では約 29 メガピクセルの中間画像が必要になってエッジが破綻する
+- crop 値は `scripts/title-sprite-bbox.py` で出す。**ffmpeg の `cropdetect` は使えない** —— この素材では先頭の「A」を 3px、上下を 5px 削った値を返す
+- 素材の実解像度はインク部分で **838×214**。DPR 2 の画面で幅 48rem に置くと 1.83 倍の拡大になるので、シャープにしたければ元データを 2 倍で書き出し直す必要がある
+
+### 再生シーケンス
+
+| フレーム | 動作 |
+|---|---|
+| 0–20 | ページロード時に一度だけ再生（in アニメーション） |
+| 22–30 | 待機ループ |
+| 31–48 | 再生ボタン押下後、30 に到達してから最後まで（out アニメーション） |
+
+ループを抜けるのは**必ず 30 の次**なので、押した瞬間ではなく待機アニメの区切りから out に繋がる。終了時に `done` を emit し、`pages/index.vue` が `titleVisible` を false にして破棄する。
+
+再生ボタンは `ready` prop で出す。`index.vue` 側で **8 本のスプライト読み込み＋`document.fonts.ready`**（5 秒でタイムアウト）を待ってから true にしている。ボタンは絶対配置で、**タイトルの位置に影響しない**（消えてもタイトルが動かないため）。オーバーレイ全面がクリック可能で、どこを叩いても開始する。
 
 ---
 

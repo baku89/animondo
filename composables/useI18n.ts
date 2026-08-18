@@ -1,8 +1,6 @@
 const messages = {
 	en: {
 		'tap.title': 'Tap To Start',
-		'tap.subtitle.line1': 'Osaka EXPO EU-Japan Animation Residency',
-		'tap.subtitle.line2': 'Collaborative Project',
 		'about.button.label': 'About this work',
 		'about.title': 'About Animondo',
 		'about.body':
@@ -18,8 +16,6 @@ const messages = {
 	},
 	ja: {
 		'tap.title': 'タップで開始',
-		'tap.subtitle.line1': '大阪・関西万博 2025 EU–日本 アニメーションレジデンシー',
-		'tap.subtitle.line2': 'コラボレーションプロジェクト',
 		'about.button.label': 'この作品について',
 		'about.title': 'Animondo について',
 		'about.body':
