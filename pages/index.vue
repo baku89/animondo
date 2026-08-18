@@ -4,17 +4,20 @@
 			v-if="titleVisible"
 			:ready="assetsReady"
 			@start="audio.start"
-			@done="titleVisible = false"
+			@done="onTitleDone"
 		/>
-		<button
-			class="about-button"
-			:class="{'about-button--close': aboutOpen}"
-			:aria-label="aboutOpen ? t('about.close') : t('about.button.label')"
-			:title="aboutOpen ? t('about.close') : t('about.button.label')"
-			@click="aboutOpen = !aboutOpen"
-		>
-			{{ aboutOpen ? '×' : '?' }}
-		</button>
+		<Transition name="about-pop">
+			<button
+				v-if="aboutVisible"
+				class="about-button"
+				:class="{'about-button--close': aboutOpen}"
+				:aria-label="aboutOpen ? t('about.close') : t('about.button.label')"
+				:title="aboutOpen ? t('about.close') : t('about.button.label')"
+				@click="aboutOpen = !aboutOpen"
+			>
+				{{ aboutOpen ? '×' : '?' }}
+			</button>
+		</Transition>
 		<AboutModal :open="aboutOpen" @close="aboutOpen = false" />
 		<canvas ref="canvas" class="canvas" />
 		<Transition name="bubble">
@@ -48,7 +51,7 @@
 </template>
 
 <script setup lang="ts">
-import {useIntervalFn} from '@vueuse/core'
+import {useIntervalFn, useTimeoutFn} from '@vueuse/core'
 import type Regl from 'regl'
 
 import TileFragmentShader from '~/components/shaders/tile.frag?raw'
@@ -89,6 +92,20 @@ const aboutOpen = ref(false)
 // starts the piece, at which point it is dropped for good.
 const titleVisible = ref(true)
 const assetsReady = ref(false)
+
+// Nothing but the dance for the first moments — the ? arrives once the title
+// is gone and the eye has had a beat to settle on the animation.
+const aboutVisible = ref(false)
+const {start: revealAbout} = useTimeoutFn(
+	() => (aboutVisible.value = true),
+	1200,
+	{immediate: false}
+)
+
+function onTitleDone() {
+	titleVisible.value = false
+	revealAbout()
+}
 
 let videoTextureArray: ReturnType<typeof useVideoTextureArray> | null = null
 let tileMap: TileMap | null = null
@@ -353,6 +370,14 @@ main
 	left 0
 	width 100vw
 	height 100svh
+
+// The ? pops in rather than fading, so it reads as arriving
+.about-pop-enter-active
+	transition opacity 0.3s ease, scale 0.5s cubic-bezier(0.2, 1.7, 0.4, 1)
+
+.about-pop-enter-from
+	opacity 0
+	scale 0.2
 
 .about-button
 	position fixed
