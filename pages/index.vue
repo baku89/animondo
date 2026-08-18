@@ -13,11 +13,12 @@
 		</button>
 		<button
 			class="about-button"
-			:aria-label="t('about.button.label')"
-			:title="t('about.button.label')"
-			@click="aboutOpen = true"
+			:class="{'about-button--close': aboutOpen}"
+			:aria-label="aboutOpen ? t('about.close') : t('about.button.label')"
+			:title="aboutOpen ? t('about.close') : t('about.button.label')"
+			@click="aboutOpen = !aboutOpen"
 		>
-			?
+			{{ aboutOpen ? '×' : '?' }}
 		</button>
 		<AboutModal :open="aboutOpen" @close="aboutOpen = false" />
 		<canvas ref="canvas" class="canvas" />
@@ -385,11 +386,18 @@ main
 	font-weight bold
 	line-height 1
 	cursor pointer
-	z-index 20
+	// Above the about modal, so the same button closes what it opened
+	z-index 110
 
 	&:hover
 		background black
 		color white
+
+	// The multiplication sign sits smaller than the question mark at the
+	// same size, so bump it to keep the circle looking evenly filled
+	&--close
+		font-size 1.6rem
+		font-weight normal
 
 
 .canvas

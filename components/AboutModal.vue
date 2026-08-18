@@ -17,13 +17,6 @@
 							日本語
 						</button>
 					</div>
-					<button
-						class="about-modal__close"
-						:aria-label="t('about.close')"
-						@click="$emit('close')"
-					>
-						×
-					</button>
 				</header>
 				<div class="about-modal__body">
 					<h1>{{ t('about.title') }}</h1>
@@ -76,7 +69,6 @@ onKeyStroke('Escape', () => {
 	&__header
 		display flex
 		align-items center
-		justify-content space-between
 		margin-bottom 1.5rem
 
 	&__locales
@@ -98,17 +90,6 @@ onKeyStroke('Escape', () => {
 
 			&:hover:not(.is-active)
 				background rgba(0, 0, 0, 0.06)
-
-	&__close
-		padding 0 0.5rem
-		border none
-		background transparent
-		font-size 2rem
-		line-height 1
-		cursor pointer
-
-		&:hover
-			opacity 0.6
 
 	&__body
 		h1
