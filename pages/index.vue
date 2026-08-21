@@ -56,6 +56,7 @@ import type Regl from 'regl'
 
 import TileFragmentShader from '~/components/shaders/tile.frag?raw'
 import {useKawachiAudio} from '~/composables/useKawachiAudio'
+import {usePatternControl} from '~/composables/usePatternControl'
 import {useRegl} from '~/composables/useRegl'
 import {useVideoTextureArray} from '~/composables/useVideoTextureArray'
 import {useZUI} from '~/composables/useZUI'
@@ -112,6 +113,13 @@ let tileMap: TileMap | null = null
 
 // Initialize ZUI for navigation
 const zui = useZUI(canvas)
+
+// Keyboard steering. The centre of the screen is resolved on demand rather
+// than captured, so a pattern built around the middle of the grid keeps
+// landing where the visitor is looking even after they pan.
+const patternControl = usePatternControl(() =>
+	zui.screenToWorld(window.innerWidth / 2, window.innerHeight / 2)
+)
 
 let currentFrame = 0
 
@@ -250,26 +258,10 @@ useRegl<Uniforms>(canvas, {
 				yield Patterns.radialMask(Patterns.clockwise, i)
 			}
 
+			// From here the keyboard has the floor. takePattern() is only
+			// read at a step boundary, so presses land on the beat.
 			while (true) {
-				yield Patterns.clockwise
-				yield Patterns.clockwise
-				yield Patterns.counterClockwise
-
-				yield Patterns.upDown
-				yield Patterns.downUp
-				yield Patterns.leftRight
-				yield Patterns.rightLeft
-
-				yield Patterns.up
-				yield Patterns.right
-				yield Patterns.down
-				yield Patterns.left
-				yield Patterns.down
-				yield Patterns.right
-				yield Patterns.up
-
-				yield Patterns.clockwise
-				yield Patterns.clockwise
+				yield patternControl.takePattern()
 			}
 		})
 

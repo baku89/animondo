@@ -1,7 +1,7 @@
 const messages = {
 	en: {
 		'tap.title': 'Tap To Start',
-		'about.button.label': 'About this work',
+		'about.button.label': 'About this project',
 		'about.title': 'About Animondo',
 		'about.body':
 			'Animondo is an animated bon-odori created for the Osaka Expo 2025 EU–Japan Animation Residency. Eight artists each contributed hand-drawn animation along a shared template, and the system arranges and recombines their tiles as a cellular automaton — dancing endlessly to the rhythm of Kawachi Ondo.',
@@ -16,7 +16,7 @@ const messages = {
 	},
 	ja: {
 		'tap.title': 'タップで開始',
-		'about.button.label': 'この作品について',
+		'about.button.label': 'このプロジェクトについて',
 		'about.title': 'Animondo について',
 		'about.body':
 			'Animondo は、大阪・関西万博 2025 EU–日本 アニメーションレジデンシーから生まれたアニメーションの「盆踊り」です。8 人の作家がそれぞれ共通のテンプレートに沿って手描きアニメーションを制作し、それらをセル・オートマトンとして組み合わせ、河内音頭のリズムに合わせて踊り続けます。',
