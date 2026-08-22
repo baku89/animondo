@@ -25,7 +25,11 @@
 			@click="audio.toggleMuted"
 		/>
 		<AboutModal :open="aboutOpen" @close="aboutOpen = false" />
-		<canvas ref="canvas" class="canvas" />
+		<canvas
+			ref="canvas"
+			class="canvas"
+			:class="{'canvas--locked': !stageInteractive}"
+		/>
 		<Transition :css="false" @enter="onBubbleEnter" @leave="onBubbleLeave">
 			<div
 				v-if="selectedArtist"
@@ -107,18 +111,16 @@ const aboutOpen = ref(false)
 const titleVisible = ref(true)
 const assetsReady = ref(false)
 
-// Nothing but the dance for the first moments — the ? arrives once the title
-// is gone and the eye has had a beat to settle on the animation.
+// Nothing but the dance for the first moments — the ? arrives with the
+// full flood on turn 5, together with the controls unlocking.
 const aboutVisible = ref(false)
-const {start: revealAbout} = useTimeoutFn(
-	() => (aboutVisible.value = true),
-	1200,
-	{immediate: false}
-)
+
+// The choreographed opening is watched, not steered: no pan, no zoom, no
+// tapping dancers until the four rings have formed (end of turn 4).
+const stageInteractive = ref(false)
 
 function onTitleDone() {
 	titleVisible.value = false
-	revealAbout()
 }
 
 // The sound toggle waits for the play button to have drawn itself in, then
@@ -392,7 +394,7 @@ watch(zui.followTarget, target => {
 })
 
 zui.onTap((clientX, clientY) => {
-	if (!tileMap || !audio.hasStarted.value) return
+	if (!tileMap || !audio.hasStarted.value || !stageInteractive.value) return
 
 	// Light dismiss: while a bubble is open, the first tap anywhere only
 	// closes it — even when it lands on another character. Selecting that
@@ -499,16 +501,25 @@ useRegl<Uniforms>(canvas, {
 
 		// パターンジェネレーター関数（常にcを返す）
 		tileMap.setMovePattern(function* (): Generator<MovePattern, never, void> {
-			yield Patterns.empty
-			yield Patterns.empty
-			yield Patterns.empty
-			// だんだん広がる
-			for (let i = 0; i < Patterns.size.width / 2; i++) {
+			// The opening is choreographed. Births in turn k come from yield
+			// k+1's out, so the first mask is yielded once more than it plays:
+			// turns 1-4 grow four rings (2x2 .. 8x8, filling the short side at
+			// the opening zoom), turn 5 floods the rest, turn 6 reverses,
+			// turns 7-10 sweep right, down, left, up.
+			yield Patterns.radialMask(Patterns.clockwise, 1)
+			for (let i = 1; i <= 4; i++) {
 				yield Patterns.radialMask(Patterns.clockwise, i)
 			}
+			yield Patterns.clockwise
+			yield Patterns.counterClockwise
+			yield Patterns.right
+			yield Patterns.down
+			yield Patterns.left
+			yield Patterns.up
 
-			// From here the keyboard has the floor. takePattern() is only
-			// read at a step boundary, so presses land on the beat.
+			// From here the piece drifts on its own; the keyboard can borrow
+			// the floor. takePattern() is only read at a step boundary, so
+			// everything lands on the beat.
 			while (true) {
 				yield patternControl.takePattern()
 			}
@@ -534,6 +545,12 @@ useRegl<Uniforms>(canvas, {
 				verifySelection()
 			}
 			currentFrame += 1
+
+			// End of turn 4: the rings are in place — hand the stage over
+			if (currentFrame === 32) {
+				stageInteractive.value = true
+				aboutVisible.value = true
+			}
 
 			// Frame 0 closes a step: the artwork already draws the dancer at
 			// the left edge of its NEXT cell (the +256px the keyframes build
@@ -641,6 +658,11 @@ main
 	height 100svh
 	cursor grab
 	touch-action none
+
+	// The opening is watched, not steered
+	&--locked
+		pointer-events none
+		cursor default
 
 	// Hold the grab while the pointer is down
 	&:active

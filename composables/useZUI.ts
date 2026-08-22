@@ -13,7 +13,21 @@ export function useZUI(element: Ref<HTMLElement | null>) {
 		)
 	)
 
-	const {width} = useElementSize(element)
+	const {width, height} = useElementSize(element)
+
+	// Opening zoom: eight cells across the viewport's SHORT side. The static
+	// default above assumes portrait; once the element is measured, correct
+	// for landscape, where the short side is the height.
+	let zoomInitialized = false
+	watch([width, height], ([w, h]) => {
+		if (zoomInitialized || !w || !h) return
+		zoomInitialized = true
+		transform.value = mat2d.mul(
+			mat2d.scaling((4 * Math.min(w, h)) / w),
+			mat2d.translation(-0.5),
+			mat2d.scaling(1 / Patterns.size.width)
+		)
+	})
 
 	// Zoom about a screen position (clientX/Y), clamping the scale
 	function zoomBy(delta: number, clientX: number, clientY: number) {

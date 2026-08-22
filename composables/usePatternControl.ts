@@ -121,6 +121,47 @@ function sustains(key: string, isInverted: boolean): boolean {
 	return known
 }
 
+// Everything the autonomous drift may draw from. Inversion, rotation and a
+// toroidal shift are applied on top, so this covers scatter and every
+// re-anchored variant without listing them.
+const AUTO_BASES = [
+	Patterns.clockwise,
+	Patterns.gather,
+	Patterns.horizontalGather,
+	Patterns.verticalGather,
+	Patterns.smallClockwise,
+	Patterns.rightAppearVanish,
+	Patterns.verticalSwap,
+	Patterns.horizontalSwap,
+	Patterns.upDown,
+	Patterns.leftRight,
+	Patterns.up,
+	Patterns.right,
+	Patterns.down,
+	Patterns.left,
+]
+
+const randomInt = (min: number, max: number) =>
+	min + Math.floor(Math.random() * (max - min + 1))
+
+function randomPattern(following: boolean): MovePattern {
+	for (let attempt = 0; attempt < 24; attempt++) {
+		let pattern = AUTO_BASES[randomInt(0, AUTO_BASES.length - 1)]!
+		if (Math.random() < 0.5) pattern = Patterns.invert(pattern)
+		for (let turns = randomInt(0, 3); turns > 0; turns--) {
+			pattern = Patterns.rotate90(pattern)
+		}
+		pattern = Patterns.offset(pattern, [
+			randomInt(0, Patterns.size.width - 1),
+			randomInt(0, Patterns.size.height - 1),
+		])
+
+		// A watched dancer must survive whatever the drift deals out
+		if (!following || sustainsDancers(pattern)) return pattern
+	}
+	return Patterns.clockwise
+}
+
 export function usePatternControl(
 	centreCell: () => vec2,
 	isFollowing: () => boolean = () => false
@@ -131,6 +172,13 @@ export function usePatternControl(
 	// The most recent choice a followed dancer can live through
 	let safeKey = 'c'
 	let safeInverted = false
+
+	// The piece drifts through random patterns on its own; a key press pins
+	// the manual choice for a while, then the drift resumes.
+	const MANUAL_HOLD = 8
+	let sincePress = Infinity
+	let auto: {pattern: MovePattern; sustains: boolean; left: number} | null =
+		null
 
 	useEventListener('keydown', (event: KeyboardEvent) => {
 		if (event.metaKey || event.ctrlKey || event.altKey) return
@@ -149,15 +197,32 @@ export function usePatternControl(
 
 		pendingKey = key
 		inverted = nextInverted
+		sincePress = 0
 	})
 
 	// Read once per automaton step. Presses are never acted on where they
 	// arrive, which quantises them to the beat and collapses a flurry inside
 	// one step down to whatever it ended on.
 	function takePattern(): MovePattern {
+		const following = isFollowing()
+
+		// Outside the manual window, wander: hold each random pattern for a
+		// few turns, then deal another.
+		if (sincePress++ >= MANUAL_HOLD) {
+			if (!auto || --auto.left <= 0 || (following && !auto.sustains)) {
+				const pattern = randomPattern(following)
+				auto = {
+					pattern,
+					sustains: sustainsDancers(pattern),
+					left: randomInt(2, 4),
+				}
+			}
+			return auto.pattern
+		}
+
 		// A lethal pattern may already be running when a dancer is tapped;
 		// fall back to the last survivable choice until the follow ends.
-		if (isFollowing() && !sustains(pendingKey, inverted)) {
+		if (following && !sustains(pendingKey, inverted)) {
 			pendingKey = safeKey
 			inverted = safeInverted
 		} else if (sustains(pendingKey, inverted)) {
