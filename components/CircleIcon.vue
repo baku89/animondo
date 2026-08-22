@@ -47,15 +47,6 @@ watch(
 	next => glyph.setState(next)
 )
 
-watch(
-	() => props.leaving,
-	leaving => {
-		if (!leaving) return
-		outline.dismiss()
-		glyph.dismiss()
-	}
-)
-
 function draw() {
 	const canvas = surface.value
 	if (!canvas || width.value === 0) return
@@ -93,14 +84,24 @@ function draw() {
 	}
 }
 
+let dismissed = false
+
 useIntervalFn(() => {
+	// Read on the beat rather than watched, so a `leaving` that is already
+	// true when this mounts still starts the exit.
+	if (props.leaving && !dismissed) {
+		dismissed = true
+		outline.dismiss()
+		glyph.dismiss()
+	}
+
 	outline.tick()
 	glyph.tick()
 	draw()
 
 	// Both layers have to finish before the icon may be taken away, or the
 	// slower one is cut off mid-stroke.
-	if (props.leaving && outline.done && glyph.done) emit('left')
+	if (dismissed && outline.done && glyph.done) emit('left')
 }, 1000 / 12)
 
 // Redraw on resize even while a loop is between ticks

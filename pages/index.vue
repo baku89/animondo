@@ -17,7 +17,7 @@
 		/>
 		<AboutModal :open="aboutOpen" @close="aboutOpen = false" />
 		<canvas ref="canvas" class="canvas" />
-		<Transition name="bubble">
+		<Transition :css="false" @enter="onBubbleEnter" @leave="onBubbleLeave">
 			<div
 				v-if="selectedArtist"
 				class="profile-bubble"
@@ -255,6 +255,67 @@ const bubbleStyle = computed(() => {
 watch(aboutOpen, open => {
 	if (open) deselect()
 })
+
+// --- Bubble enter/leave: grow the balloon for real ---
+
+// The frame is a border-image, so animating the box's actual size lays the
+// drawn line out afresh at every step — the ink keeps its thickness instead
+// of being stretched by a transform. Quantized to 12 fps like the icons.
+// The box is anchored on its tail side (bubbleStyle pins that edge), so it
+// grows away from the character.
+const GROW_FACTORS = [0.25, 0.5, 0.75]
+
+let cancelSizing: (() => void) | null = null
+
+function stepBubbleSize(el: HTMLElement, factors: number[], done: () => void) {
+	const prevWidth = el.style.width
+	const prevHeight = el.style.height
+	const width = el.offsetWidth
+	const height = el.offsetHeight
+
+	// Hides the contents (CSS), which would spill out of a half-grown frame
+	el.classList.add('profile-bubble--sizing')
+
+	const apply = (f: number) => {
+		el.style.width = `${Math.round(width * f)}px`
+		el.style.height = `${Math.round(height * f)}px`
+	}
+
+	const finish = () => {
+		clearInterval(timer)
+		el.style.width = prevWidth
+		el.style.height = prevHeight
+		el.classList.remove('profile-bubble--sizing')
+	}
+
+	let i = 0
+	apply(factors[0])
+	const timer = setInterval(() => {
+		i++
+		if (i < factors.length) {
+			apply(factors[i])
+			return
+		}
+		finish()
+		done()
+	}, 1000 / 12)
+
+	return finish
+}
+
+function onBubbleEnter(el: Element, done: () => void) {
+	cancelSizing?.()
+	cancelSizing = stepBubbleSize(el as HTMLElement, GROW_FACTORS, done)
+}
+
+function onBubbleLeave(el: Element, done: () => void) {
+	cancelSizing?.()
+	cancelSizing = stepBubbleSize(
+		el as HTMLElement,
+		[...GROW_FACTORS].reverse(),
+		done
+	)
+}
 
 function deselect() {
 	selection.value = null
@@ -534,19 +595,14 @@ main
 
 	// Bubble above the character — tail below, pointing down. The 34px
 	// offset (from the padding box) leaves the tail's root just touching
-	// the border line rather than sinking into the balloon; --trim-from is
-	// the enter animation's first frame, a sliver around the tail.
+	// the border line rather than sinking into the balloon.
 	&--top
-		--trim-from inset(calc(100% - 4px) calc(50% - 24px) -24px calc(50% - 24px))
-
 		&::after
 			bottom -34px
 			left 50%
 			translate -50% 0
 
 	&--bottom
-		--trim-from inset(-24px calc(50% - 24px) calc(100% - 4px) calc(50% - 24px))
-
 		&::after
 			top -34px
 			left 50%
@@ -555,8 +611,6 @@ main
 
 	// Bubble to the right of the character — tail on the left edge
 	&--right
-		--trim-from inset(calc(50% - 24px) calc(100% - 4px) calc(50% - 24px) -24px)
-
 		&::after
 			left -34px
 			top 50%
@@ -564,13 +618,17 @@ main
 			rotate 90deg
 
 	&--left
-		--trim-from inset(calc(50% - 24px) -24px calc(50% - 24px) calc(100% - 4px))
-
 		&::after
 			right -34px
 			top 50%
 			translate 0 -50%
 			rotate -90deg
+
+	// While the enter/leave steps resize the box, the contents would spill
+	// out of the half-grown frame — hide them. The tail is a pseudo element
+	// (not matched by >*), so it stays and rides along on the moving edge.
+	&--sizing > *
+		visibility hidden
 
 	&__close
 		position absolute
@@ -645,20 +703,4 @@ main
 	66.7%
 		background-image url('/animondo/bubble/tail_2.webp')
 
-// Enter/leave by trimming the drawn line: clip-path uncovers the bubble
-// from the tail side outward, so the ink keeps its thickness instead of
-// being scaled. Quantized to 12 fps. The -24px outset keeps the tail
-// (which pokes past the border box) inside the clip; when the animation
-// ends, clip-path falls back to none, which renders the same.
-@keyframes bubble-trim
-	from
-		clip-path var(--trim-from)
-	to
-		clip-path inset(-24px)
-
-.bubble-enter-active
-	animation bubble-trim 0.25s steps(3, jump-start)
-
-.bubble-leave-active
-	animation bubble-trim 0.25s steps(3, jump-start) reverse both
 </style>
