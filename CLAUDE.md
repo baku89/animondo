@@ -314,6 +314,7 @@ nextStep() ごとに:
 - **コミットメッセージ・コードコメントは英語**（`.cursorrules`）
 - インデントは **タブ**（`.editorconfig`）、Prettier 設定: `singleQuote, bracketSpacing:false, semi:false, trailingComma:es5`
 - パッケージマネージャは **yarn**（npm / pnpm を混ぜない）
+- Stylus は CSS の `min()` / `max()` を**自前の関数として評価してしまう**。`min(var(--a), 86vw)` は `var()` と長さを比較できず、エラーも出さずに片方を選ぶ（実際 `--title-width` が `86vw` に化けた）。`unquote('min(var(--a), 86vw)')` で囲むか、`calc()` を挟んで素通しさせること
 - `dist/` は `.output/public` へのシンボリックリンクなので消さない
 - `public/sprites/*.mp4` を差し替えるときは After Effects プロジェクト（`../osaka_expo_collaborative/osaka-expo-anim-residency-collab.aep`）から書き出すワークフローに従う。**3×2 グリッド・8 frames/cell** の規約を絶対に崩さない（崩すならシェーダ側 `tile.frag` の `vec2(3.0, 2.0)` と offset 計算を併せて変える）
 - ステップ周波数を変えたい場合は `pages/*.vue` 側の `useIntervalFn(..., 1000 / 8.8)` と `currentFrame % 8` の 2 か所をセットで触る

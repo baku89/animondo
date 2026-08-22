@@ -105,13 +105,9 @@ onKeyStroke('Escape', () => {
 				background rgba(0, 0, 0, 0.06)
 
 	&__body
-		// Set wider than the column it heads, so centre it on that column
 		.about-modal__title
 			width var(--title-width)
 			margin 0 0 1.5rem
-			position relative
-			left 50%
-			translate -50% 0
 
 		p
 			margin 0 0 1.5rem

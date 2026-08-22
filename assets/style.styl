@@ -16,9 +16,12 @@
 	-webkit-text-size-adjust 100%
 	interpolate-size allow-keywords
 
-	// The About panel's column, and the title, which is set wider than it
+	// The About panel's column. The title is set to the same measure, in the
+	// panel and on the loading screen alike — wider and it reads stretched.
 	--panel-width 36rem
-	--title-width min(calc(var(--panel-width) * 1.2), 86vw)
+	// unquote, or Stylus evaluates min() itself and cannot compare a var()
+	// against a length — it silently picked 86vw
+	--title-width unquote('min(var(--panel-width), 86vw)')
 
 *, &::before, &::after
 	-webkit-appearance none
