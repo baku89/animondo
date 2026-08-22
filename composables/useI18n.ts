@@ -24,6 +24,8 @@ const messages = {
 		'about.support.label': 'Supported by',
 		'about.support.value': 'the European Union',
 		'about.close': 'Close',
+		'sound.mute': 'Mute',
+		'sound.unmute': 'Unmute',
 	},
 	ja: {
 		'tap.title': 'タップで開始',
@@ -50,6 +52,8 @@ const messages = {
 		'about.support.label': '助成',
 		'about.support.value': '欧州連合',
 		'about.close': '閉じる',
+		'sound.mute': '消音',
+		'sound.unmute': '消音解除',
 	},
 } as const
 

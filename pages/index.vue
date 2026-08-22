@@ -15,6 +15,15 @@
 			:label="aboutOpen ? t('about.close') : t('about.button.label')"
 			@click="aboutOpen = !aboutOpen"
 		/>
+		<CircleIcon
+			v-if="soundVisible"
+			class="sound-button"
+			:glyph="SOUND_SHEET"
+			size="clamp(3rem, 10vw, 6rem)"
+			:state="audio.muted.value ? 'mute' : 'unmute'"
+			:label="audio.muted.value ? t('sound.unmute') : t('sound.mute')"
+			@click="audio.toggleMuted"
+		/>
 		<AboutModal :open="aboutOpen" @close="aboutOpen = false" />
 		<canvas ref="canvas" class="canvas" />
 		<Transition :css="false" @enter="onBubbleEnter" @leave="onBubbleLeave">
@@ -60,7 +69,7 @@ import TileFragmentShader from '~/components/shaders/tile.frag?raw'
 import {useKawachiAudio} from '~/composables/useKawachiAudio'
 import {usePatternControl} from '~/composables/usePatternControl'
 import {useRegl} from '~/composables/useRegl'
-import {ABOUT_SHEET} from '~/composables/useSpritePlayer'
+import {ABOUT_SHEET, SOUND_SHEET} from '~/composables/useSpritePlayer'
 import {useVideoTextureArray} from '~/composables/useVideoTextureArray'
 import {useZUI} from '~/composables/useZUI'
 import {ARTISTS} from '~/utils/artists'
@@ -111,6 +120,22 @@ function onTitleDone() {
 	titleVisible.value = false
 	revealAbout()
 }
+
+// The sound toggle waits for the play button to have drawn itself in, then
+// arrives as its own beat rather than alongside it.
+const soundVisible = ref(false)
+const {start: revealSound} = useTimeoutFn(
+	() => (soundVisible.value = true),
+	1500,
+	{immediate: false}
+)
+watch(
+	assetsReady,
+	ready => {
+		if (ready) revealSound()
+	},
+	{immediate: true}
+)
 
 let videoTextureArray: ReturnType<typeof useVideoTextureArray> | null = null
 let tileMap: TileMap | null = null
@@ -600,6 +625,13 @@ main
 	top 1rem
 	right 1rem
 	// Above the about modal, so the same button closes what it opened
+	z-index 110
+
+.sound-button
+	position fixed
+	top 1rem
+	left 1rem
+	// Above the title overlay: muting must not start the piece
 	z-index 110
 
 

@@ -3,6 +3,12 @@ export function useKawachiAudio() {
 	audio.loop = true
 
 	const hasStarted = ref(false)
+	const muted = ref(false)
+
+	function toggleMuted() {
+		muted.value = !muted.value
+		audio.muted = muted.value
+	}
 
 	const playPromise: PromiseWithResolvers<void> = Promise.withResolvers()
 
@@ -17,5 +23,7 @@ export function useKawachiAudio() {
 		},
 		waitForPlay: () => playPromise.promise,
 		hasStarted: readonly(hasStarted),
+		muted: readonly(muted),
+		toggleMuted,
 	}
 }

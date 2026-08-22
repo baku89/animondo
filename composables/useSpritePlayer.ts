@@ -40,6 +40,18 @@ export const PLAY_SHEET: SpriteSheet = {
 	markers: {appear: 0, 'fixed-loop': 6, dissapear: 10},
 }
 
+export const SOUND_SHEET: SpriteSheet = {
+	url: '/animondo/icons/circle-icon_sound.webp',
+	frames: 29,
+	columns: 6,
+	markers: {
+		appear: 0,
+		'unmute-loop': 11,
+		'unmute-to-mute': 21,
+		'mute-loop': 25,
+	},
+}
+
 interface Section {
 	from: number
 	/** Inclusive */
