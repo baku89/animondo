@@ -170,17 +170,38 @@ export function useZUI(element: Ref<HTMLElement | null>) {
 		return inverted ? vec2.transformMat2d(norm, inverted) : norm
 	}
 
-	// カメラ追尾: followTarget（パターン空間座標）が画面中央に来るよう
-	// 毎フレーム平行移動成分だけを指数的に補間する
+	// カメラ追尾: followTarget（パターン空間座標）が followAnchor（スクリーン
+	// 座標、null なら画面中央）に来るよう毎フレーム平行移動成分だけを指数的に
+	// 補間する
 	const followTarget = ref<vec2 | null>(null)
+
+	/** Screen point (clientX/Y) the followed target is steered toward;
+	 * the element's centre when null */
+	const followAnchor = ref<vec2 | null>(null)
 
 	useRafFn(({delta}) => {
 		const target = followTarget.value
-		if (!target) return
+		const el = element.value
+		if (!target || !el) return
+
+		// The anchor lives in client pixels; bring it into the same
+		// normalized space the transform maps the world into (origin at the
+		// element centre, 2/width units per CSS pixel).
+		let anchor: vec2 = vec2.zero
+		if (followAnchor.value) {
+			const rect = el.getBoundingClientRect()
+			anchor = vec2.scale(
+				[
+					followAnchor.value[0] - (rect.left + rect.width / 2),
+					followAnchor.value[1] - (rect.top + rect.height / 2),
+				],
+				2 / width.value
+			)
+		}
 
 		const [a, b, c, d, tx, ty] = transform.value
-		const desiredTx = -(a * target[0] + c * target[1])
-		const desiredTy = -(b * target[0] + d * target[1])
+		const desiredTx = anchor[0] - (a * target[0] + c * target[1])
+		const desiredTy = anchor[1] - (b * target[0] + d * target[1])
 
 		const k = 1 - Math.exp(-delta / 450)
 
@@ -212,6 +233,7 @@ export function useZUI(element: Ref<HTMLElement | null>) {
 		onTap,
 		screenToWorld,
 		followTarget,
+		followAnchor,
 		pixelsPerCell,
 	}
 }

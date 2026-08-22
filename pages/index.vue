@@ -10,7 +10,7 @@
 			v-if="aboutVisible"
 			class="about-button"
 			:glyph="ABOUT_SHEET"
-			size="3.25rem"
+			size="clamp(3rem, 10vw, 6rem)"
 			:state="aboutOpen ? 'close' : 'about'"
 			:label="aboutOpen ? t('about.close') : t('about.button.label')"
 			@click="aboutOpen = !aboutOpen"
@@ -18,7 +18,12 @@
 		<AboutModal :open="aboutOpen" @close="aboutOpen = false" />
 		<canvas ref="canvas" class="canvas" />
 		<Transition name="bubble">
-			<div v-if="selectedArtist" class="profile-bubble" :style="bubbleStyle">
+			<div
+				v-if="selectedArtist"
+				class="profile-bubble"
+				:class="`profile-bubble--${bubbleSide}`"
+				:style="bubbleStyle"
+			>
 				<button
 					class="profile-bubble__close"
 					:aria-label="t('about.close')"
@@ -48,7 +53,7 @@
 </template>
 
 <script setup lang="ts">
-import {useIntervalFn, useTimeoutFn} from '@vueuse/core'
+import {useIntervalFn, useTimeoutFn, useWindowSize} from '@vueuse/core'
 import type Regl from 'regl'
 
 import TileFragmentShader from '~/components/shaders/tile.frag?raw'
@@ -133,21 +138,113 @@ const selectedArtist = computed(() =>
 	selection.value ? ARTISTS[selection.value.artistIndex] : null
 )
 
-const bubbleStyle = computed(() => {
-	const offset = Math.min(
-		Math.max(zui.pixelsPerCell.value * 0.55 + 12, 60),
-		window.innerHeight * 0.35
-	)
-	// The bubble sits above the anchor, so the prose can only use what is
-	// left between the anchor and the top of the screen. Reserve room for the
-	// name, the padding and a little breathing space; scroll past that.
-	const CHROME = 96
-	const available = window.innerHeight * 0.5 - offset - CHROME
+// --- Bubble placement ---
 
-	return {
-		bottom: `calc(50% + ${offset}px)`,
-		'--profile-max-height': `${Math.max(available, 120)}px`,
+// Margins that keep the bubble off the screen edges and off the fixed UI
+// (the ? button row along the top).
+const BUBBLE_MARGIN = 16
+const BUBBLE_TOP_CLEARANCE = 84
+const BUBBLE_BOTTOM_CLEARANCE = 24
+/** Air between the character's footprint and the bubble, tail included */
+const BUBBLE_GAP = 12
+const BUBBLE_MAX_WIDTH = 480
+/** Below this, a side-by-side layout is not worth the squeeze */
+const BUBBLE_MIN_WIDTH = 288
+
+/** Where the bubble sits relative to the followed character */
+type BubbleSide = 'top' | 'bottom' | 'left' | 'right'
+const bubbleSide = ref<BubbleSide>('top')
+
+const {width: winWidth, height: winHeight} = useWindowSize()
+
+// Half of the on-screen footprint reserved for the character, zoom-aware
+const charHalf = computed(() =>
+	Math.min(
+		Math.max(zui.pixelsPerCell.value * 0.55 + 12, 60),
+		Math.min(winWidth.value, winHeight.value) * 0.25
+	)
+)
+
+// The screen point the camera steers the character to. Rather than pinning
+// the character to the centre, it is pushed toward the edge opposite the
+// bubble, so the bubble can take the rest of the screen.
+const characterAnchor = computed<[number, number]>(() => {
+	const vw = winWidth.value
+	const vh = winHeight.value
+	const half = charHalf.value
+
+	switch (bubbleSide.value) {
+		case 'right':
+			return [BUBBLE_MARGIN + half, vh / 2]
+		case 'left':
+			return [vw - BUBBLE_MARGIN - half, vh / 2]
+		case 'bottom':
+			return [vw / 2, BUBBLE_TOP_CLEARANCE + half]
+		default: // 'top'
+			return [vw / 2, vh - BUBBLE_BOTTOM_CLEARANCE - half]
 	}
+})
+
+watchEffect(() => {
+	zui.followAnchor.value = selection.value ? characterAnchor.value : null
+})
+
+const bubbleStyle = computed(() => {
+	const vw = winWidth.value
+	const vh = winHeight.value
+	const half = charHalf.value
+	const [ax, ay] = characterAnchor.value
+
+	// The bubble grows from the edge facing the character (fit-content),
+	// capped so it never runs past the margins on the far side.
+	switch (bubbleSide.value) {
+		case 'right': {
+			const edge = ax + half + BUBBLE_GAP
+			return {
+				left: `${edge}px`,
+				top: `${ay}px`,
+				transform: 'translateY(-50%)',
+				width: `${Math.min(vw - BUBBLE_MARGIN - edge, BUBBLE_MAX_WIDTH)}px`,
+				maxHeight: `${vh - 2 * BUBBLE_TOP_CLEARANCE}px`,
+			}
+		}
+		case 'left': {
+			const edge = ax - half - BUBBLE_GAP
+			return {
+				right: `${vw - edge}px`,
+				top: `${ay}px`,
+				transform: 'translateY(-50%)',
+				width: `${Math.min(edge - BUBBLE_MARGIN, BUBBLE_MAX_WIDTH)}px`,
+				maxHeight: `${vh - 2 * BUBBLE_TOP_CLEARANCE}px`,
+			}
+		}
+		case 'bottom': {
+			const edge = ay + half + BUBBLE_GAP
+			return {
+				top: `${edge}px`,
+				left: `${ax}px`,
+				transform: 'translateX(-50%)',
+				width: `${Math.min(vw - 2 * BUBBLE_MARGIN, BUBBLE_MAX_WIDTH)}px`,
+				maxHeight: `${vh - BUBBLE_BOTTOM_CLEARANCE - edge}px`,
+			}
+		}
+		default: {
+			// 'top'
+			const edge = ay - half - BUBBLE_GAP
+			return {
+				bottom: `${vh - edge}px`,
+				left: `${ax}px`,
+				transform: 'translateX(-50%)',
+				width: `${Math.min(vw - 2 * BUBBLE_MARGIN, BUBBLE_MAX_WIDTH)}px`,
+				maxHeight: `${edge - BUBBLE_TOP_CLEARANCE}px`,
+			}
+		}
+	}
+})
+
+// The panel covers the stage, so a bubble left open sits behind it
+watch(aboutOpen, open => {
+	if (open) deselect()
 })
 
 function deselect() {
@@ -179,6 +276,21 @@ zui.onTap((clientX, clientY) => {
 	if (!move || (move.in === Direction.None && move.out === Direction.None)) {
 		return
 	}
+
+	// Pick which side the bubble opens on. A landscape screen with room to
+	// spare reads left/right off the tap; otherwise the tapped half of the
+	// screen keeps the character and the bubble takes the other half.
+	const vw = window.innerWidth
+	const vh = window.innerHeight
+	const sideSpace = vw - 2 * BUBBLE_MARGIN - 2 * charHalf.value - BUBBLE_GAP
+	bubbleSide.value =
+		vw > vh && sideSpace >= BUBBLE_MIN_WIDTH
+			? clientX < vw / 2
+				? 'right'
+				: 'left'
+			: clientY < vh / 2
+				? 'bottom'
+				: 'top'
 
 	selection.value = {
 		cell,
@@ -375,17 +487,20 @@ main
 	height 100svh
 	cursor grab
 	touch-action none
+
+	// Hold the grab while the pointer is down
+	&:active
+		cursor grabbing
 	user-select none
 	-webkit-user-select none
 	-moz-user-select none
 	-ms-user-select none
 
 .profile-bubble
+	display flex
+	flex-direction column
 	position fixed
-	left 50%
-	transform translateX(-50%)
 	z-index 15
-	max-width min(20rem, 85vw)
 	padding 0.75rem 1.5rem
 	border 2px solid black
 	border-radius 1rem
@@ -393,18 +508,45 @@ main
 	text-align center
 	line-height 1.5
 
-	// Tail pointing down toward the followed character
+	// Tail: a white square with two black edges, rotated into a diamond so
+	// its outward corner points at the character. Which two edges carry the
+	// border decides which way the corner points.
 	&::after
 		content ''
 		position absolute
-		bottom -8px
-		left 50%
 		width 14px
 		height 14px
 		background white
+
+	// Bubble above the character — tail on the bottom edge, pointing down
+	&--top::after
+		bottom -8px
+		left 50%
 		border-right 2px solid black
 		border-bottom 2px solid black
 		transform translateX(-50%) rotate(45deg)
+
+	&--bottom::after
+		top -8px
+		left 50%
+		border-top 2px solid black
+		border-left 2px solid black
+		transform translateX(-50%) rotate(45deg)
+
+	// Bubble to the right of the character — tail on the left edge
+	&--right::after
+		left -8px
+		top 50%
+		border-bottom 2px solid black
+		border-left 2px solid black
+		transform translateY(-50%) rotate(45deg)
+
+	&--left::after
+		right -8px
+		top 50%
+		border-top 2px solid black
+		border-right 2px solid black
+		transform translateY(-50%) rotate(45deg)
 
 	&__close
 		position absolute
@@ -420,6 +562,7 @@ main
 
 	&__name
 		display inline-block
+		align-self center
 		font-size 1.25rem
 		cursor pointer
 
@@ -431,9 +574,11 @@ main
 		font-size 0.85rem
 		color gray
 		text-align left
-		// Press-kit bios run long. Cap the prose rather than the bubble, so
-		// the name, the close button and the ::after tail all stay put.
-		max-height var(--profile-max-height, 20rem)
+		// The bubble itself is capped (maxHeight from bubbleStyle); the prose
+		// is the one flex child allowed to shrink, so long press-kit bios
+		// scroll while the name and the close button stay put.
+		flex 0 1 auto
+		min-height 0
 		overflow-y auto
 		overscroll-behavior contain
 

@@ -11,7 +11,7 @@
 				v-if="ready && playPresent"
 				class="title-sequence__start"
 				:glyph="PLAY_SHEET"
-				size="4.5rem"
+				size="clamp(3.5rem, 14vw, 8rem)"
 				state="fixed"
 				:label="t('tap.title')"
 				:leaving="started"
