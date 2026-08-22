@@ -171,15 +171,16 @@ export function useZUI(element: Ref<HTMLElement | null>) {
 	}
 
 	// カメラ追尾: followTarget（パターン空間座標）が followAnchor（スクリーン
-	// 座標、null なら画面中央）に来るよう毎フレーム平行移動成分だけを指数的に
-	// 補間する
+	// 座標、null なら画面中央）に来るよう平行移動成分だけを合わせる。
+	// 補間はしない —— 踊り手は 8.8Hz でコマを進めるので、カメラも同じ刻みで
+	// 飛ばした方がコマ撮りの手触りが揃う
 	const followTarget = ref<vec2 | null>(null)
 
 	/** Screen point (clientX/Y) the followed target is steered toward;
 	 * the element's centre when null */
 	const followAnchor = ref<vec2 | null>(null)
 
-	useRafFn(({delta}) => {
+	useRafFn(() => {
 		const target = followTarget.value
 		const el = element.value
 		if (!target || !el) return
@@ -203,16 +204,11 @@ export function useZUI(element: Ref<HTMLElement | null>) {
 		const desiredTx = anchor[0] - (a * target[0] + c * target[1])
 		const desiredTy = anchor[1] - (b * target[0] + d * target[1])
 
-		const k = 1 - Math.exp(-delta / 450)
+		// Nothing to interpolate: the target only moves when the dancer's
+		// frame does, so following it exactly keeps the two in step.
+		if (tx === desiredTx && ty === desiredTy) return
 
-		transform.value = [
-			a,
-			b,
-			c,
-			d,
-			tx + (desiredTx - tx) * k,
-			ty + (desiredTy - ty) * k,
-		]
+		transform.value = [a, b, c, d, desiredTx, desiredTy]
 	})
 
 	/** Screen pixels per pattern cell at the current zoom */
