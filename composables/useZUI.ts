@@ -172,9 +172,26 @@ export function useZUI(element: Ref<HTMLElement | null>) {
 
 	// カメラ追尾: followTarget（パターン空間座標）が followAnchor（スクリーン
 	// 座標、null なら画面中央）に来るよう平行移動成分だけを合わせる。
-	// 補間はしない —— 踊り手は 8.8Hz でコマを進めるので、カメラも同じ刻みで
-	// 飛ばした方がコマ撮りの手触りが揃う
+	// 2 種類の移動を区別する ——
+	//   寄り: 追尾を始めた直後、選択位置までカメラを運ぶ移動。ease-out で滑らかに
+	//   追従: 以降のコマ送りに合わせる移動。補間しない —— 踊り手は 8.8Hz で
+	//         コマを進めるので、カメラも同じ刻みで飛ばした方が手触りが揃う
 	const followTarget = ref<vec2 | null>(null)
+
+	/** How long the approach takes to settle onto the dancer */
+	const APPROACH_MS = 650
+
+	// Where the camera was when the follow began; null once settled
+	let approach: {tx: number; ty: number; since: number} | null = null
+
+	watch(followTarget, (target, previous) => {
+		if (target && !previous) {
+			const [, , , , tx, ty] = transform.value
+			approach = {tx, ty, since: performance.now()}
+		} else if (!target) {
+			approach = null
+		}
+	})
 
 	/** Screen point (clientX/Y) the followed target is steered toward;
 	 * the element's centre when null */
@@ -204,8 +221,29 @@ export function useZUI(element: Ref<HTMLElement | null>) {
 		const desiredTx = anchor[0] - (a * target[0] + c * target[1])
 		const desiredTy = anchor[1] - (b * target[0] + d * target[1])
 
-		// Nothing to interpolate: the target only moves when the dancer's
-		// frame does, so following it exactly keeps the two in step.
+		if (approach) {
+			// Carry the camera over on an ease-out. The destination keeps
+			// stepping with the dancer's frames while we travel, so this
+			// converges on a moving target and hands over cleanly.
+			const t = (performance.now() - approach.since) / APPROACH_MS
+			if (t >= 1) {
+				approach = null
+			} else {
+				const e = 1 - (1 - t) ** 3
+				transform.value = [
+					a,
+					b,
+					c,
+					d,
+					approach.tx + (desiredTx - approach.tx) * e,
+					approach.ty + (desiredTy - approach.ty) * e,
+				]
+				return
+			}
+		}
+
+		// Settled: follow exactly. The target only moves when the dancer's
+		// frame does, so snapping keeps the camera on the same 8.8Hz grid.
 		if (tx === desiredTx && ty === desiredTy) return
 
 		transform.value = [a, b, c, d, desiredTx, desiredTy]
