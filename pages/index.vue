@@ -446,9 +446,8 @@ const DIRECTION_DELTA: Partial<Record<Direction, [number, number]>> = {
 }
 
 // Move the tracked cell along the pattern's out direction. Must be called
-// with the pattern that governed the step which is just ending — on the tick
-// where the displayed frame wraps to 0, which is still before the following
-// tick's nextStep() swaps the pattern.
+// with the pattern that governed the step which is just ending, i.e. right
+// BEFORE the same tick's nextStep() swaps the pattern.
 function advanceSelection() {
 	const sel = selection.value
 	if (!sel || !tileMap) return
@@ -545,24 +544,26 @@ useRegl<Uniforms>(canvas, {
 
 		// Start the timer
 		useIntervalFn(() => {
+			currentFrame += 1
+
+			// The step turns over together with the wrap to frame 0. Leaving
+			// the old pattern up for the frame-0 tick was fine for the
+			// through-moving tiles — their frame 0 is the next cell's entry —
+			// but a Death tile's frame 0 shows the dancer back at its entry
+			// for one tick after it had vanished, and a Birth's blinks it
+			// away right after it had appeared. Swapping the pattern on the
+			// same tick gives frame 0 to the tile that actually owns it.
 			if (currentFrame % 8 === 0 && currentFrame > 0) {
+				advanceSelection()
 				tileMap?.nextStep()
 				verifySelection()
 			}
-			currentFrame += 1
 
 			// End of turn 7: the rings are in place — hand the stage over
 			if (currentFrame === 56) {
 				stageInteractive.value = true
 				aboutVisible.value = true
 			}
-
-			// Frame 0 closes a step: the artwork already draws the dancer at
-			// the left edge of its NEXT cell (the +256px the keyframes build
-			// in), one tick before the automaton advances. Move the tracked
-			// cell on the same tick, or the camera looks back a full cell for
-			// exactly one frame at every turn.
-			if (currentFrame % 8 === 0) advanceSelection()
 
 			videoTextureArray?.setFrame(currentFrame % 8)
 			updateFollowTarget()
