@@ -32,6 +32,14 @@ export const ABOUT_SHEET: SpriteSheet = {
 	markers: {appear: 0, 'about-loop': 11, 'about-to-close': 17, 'close-loop': 24},
 }
 
+export const PLAY_SHEET: SpriteSheet = {
+	url: '/animondo/icons/circle-icon_play.webp',
+	frames: 18,
+	columns: 5,
+	// Spelled as the marker is
+	markers: {appear: 0, 'fixed-loop': 6, dissapear: 10},
+}
+
 interface Section {
 	from: number
 	/** Inclusive */
