@@ -29,8 +29,18 @@
 						<dd>{{ t('about.artists.list') }}</dd>
 						<dt>{{ t('about.music.label') }}</dt>
 						<dd>{{ t('about.music.value') }}</dd>
+						<dt>{{ t('about.curators.label') }}</dt>
+						<dd>{{ t('about.curators.value') }}</dd>
+						<dt>{{ t('about.recording.label') }}</dt>
+						<dd>{{ t('about.recording.value') }}</dd>
+						<dt>{{ t('about.mentors.label') }}</dt>
+						<dd>{{ t('about.mentors.value') }}</dd>
+						<dt>{{ t('about.thanks.label') }}</dt>
+						<dd>{{ t('about.thanks.value') }}</dd>
 						<dt>{{ t('about.type.label') }}</dt>
 						<dd>{{ t('about.type.value') }}</dd>
+						<dt>{{ t('about.support.label') }}</dt>
+						<dd>{{ t('about.support.value') }}</dd>
 					</dl>
 				</div>
 			</div>
