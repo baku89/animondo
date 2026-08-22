@@ -66,7 +66,8 @@ import {useZUI} from '~/composables/useZUI'
 import {ARTISTS} from '~/utils/artists'
 import type {MovePattern} from '~/utils/patterns'
 import * as Patterns from '~/utils/patterns'
-import {Direction} from '~/utils/tile'
+import {Direction, moveToTileDisplay} from '~/utils/tile'
+import {tileCenter} from '~/utils/tileCenters'
 import {TileMap} from '~/utils/TileMap'
 
 const canvas = useTemplateRef('canvas')
@@ -317,6 +318,28 @@ function onBubbleLeave(el: Element, done: () => void) {
 	)
 }
 
+// Aim at where the dancer actually is, not the middle of its cell. The drawn
+// centres move every frame, so this is read on each tick rather than at the
+// step boundary.
+function updateFollowTarget() {
+	const sel = selection.value
+	if (!sel || !tileMap) return
+
+	const move = tileMap.currentPattern?.get(sel.cell[0], sel.cell[1])
+	if (!move) return
+
+	const info = tileMap.getTileInfo(sel.cell[0], sel.cell[1])
+	const display = moveToTileDisplay(move, info.index, info.flipVertical)
+	const [ox, oy] = tileCenter(
+		display.tile,
+		display.rotation,
+		info.flipVertical,
+		currentFrame % 8
+	)
+
+	zui.followTarget.value = [sel.cell[0] + ox, sel.cell[1] + oy]
+}
+
 function deselect() {
 	selection.value = null
 	zui.followTarget.value = null
@@ -393,7 +416,7 @@ function advanceSelection() {
 	}
 
 	sel.cell = [sel.cell[0] + delta[0], sel.cell[1] + delta[1]]
-	zui.followTarget.value = [sel.cell[0] + 0.5, sel.cell[1] + 0.5]
+	updateFollowTarget()
 }
 
 // After nextStep(), make sure the tracked cell still hosts the same artist —
@@ -467,6 +490,7 @@ useRegl<Uniforms>(canvas, {
 			}
 			currentFrame += 1
 			videoTextureArray?.setFrame(currentFrame % 8)
+			updateFollowTarget()
 		}, 1000 / 8.8)
 
 		return {
