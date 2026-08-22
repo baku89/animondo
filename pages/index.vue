@@ -400,8 +400,9 @@ const DIRECTION_DELTA: Partial<Record<Direction, [number, number]>> = {
 }
 
 // Move the tracked cell along the pattern's out direction. Must be called
-// with the pattern that governed the step which is just ending, i.e. right
-// BEFORE tileMap.nextStep().
+// with the pattern that governed the step which is just ending — on the tick
+// where the displayed frame wraps to 0, which is still before the following
+// tick's nextStep() swaps the pattern.
 function advanceSelection() {
 	const sel = selection.value
 	if (!sel || !tileMap) return
@@ -484,11 +485,18 @@ useRegl<Uniforms>(canvas, {
 		// Start the timer
 		useIntervalFn(() => {
 			if (currentFrame % 8 === 0 && currentFrame > 0) {
-				advanceSelection()
 				tileMap?.nextStep()
 				verifySelection()
 			}
 			currentFrame += 1
+
+			// Frame 0 closes a step: the artwork already draws the dancer at
+			// the left edge of its NEXT cell (the +256px the keyframes build
+			// in), one tick before the automaton advances. Move the tracked
+			// cell on the same tick, or the camera looks back a full cell for
+			// exactly one frame at every turn.
+			if (currentFrame % 8 === 0) advanceSelection()
+
 			videoTextureArray?.setFrame(currentFrame % 8)
 			updateFollowTarget()
 		}, 1000 / 8.8)
