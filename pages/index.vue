@@ -501,12 +501,17 @@ useRegl<Uniforms>(canvas, {
 
 		// パターンジェネレーター関数（常にcを返す）
 		tileMap.setMovePattern(function* (): Generator<MovePattern, never, void> {
-			// The opening is choreographed. Births in turn k come from yield
-			// k+1's out, so the first mask is yielded once more than it plays:
-			// turns 1-4 grow four rings (2x2 .. 8x8, filling the short side at
-			// the opening zoom), turn 5 floods the rest, turn 6 reverses,
-			// turns 7-10 sweep right, down, left, up.
-			yield Patterns.radialMask(Patterns.clockwise, 1)
+			// The opening is choreographed, and it opens with silence: four
+			// still turns so the first dancers land on the music the way the
+			// piece always has. Births in turn k come from yield k+1's out, so
+			// the fourth silent yield is what times the first ring: turns 4-7
+			// grow four rings (2x2 .. 8x8, filling the short side at the
+			// opening zoom), turn 8 floods the rest, turn 9 reverses, turns
+			// 10-13 sweep right, down, left, up.
+			yield Patterns.empty
+			yield Patterns.empty
+			yield Patterns.empty
+			yield Patterns.empty
 			for (let i = 1; i <= 4; i++) {
 				yield Patterns.radialMask(Patterns.clockwise, i)
 			}
@@ -546,8 +551,8 @@ useRegl<Uniforms>(canvas, {
 			}
 			currentFrame += 1
 
-			// End of turn 4: the rings are in place — hand the stage over
-			if (currentFrame === 32) {
+			// End of turn 7: the rings are in place — hand the stage over
+			if (currentFrame === 56) {
 				stageInteractive.value = true
 				aboutVisible.value = true
 			}
