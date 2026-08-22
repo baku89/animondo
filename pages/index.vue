@@ -118,13 +118,6 @@ let tileMap: TileMap | null = null
 // Initialize ZUI for navigation
 const zui = useZUI(canvas)
 
-// Keyboard steering. The centre of the screen is resolved on demand rather
-// than captured, so a pattern built around the middle of the grid keeps
-// landing where the visitor is looking even after they pan.
-const patternControl = usePatternControl(() =>
-	zui.screenToWorld(window.innerWidth / 2, window.innerHeight / 2)
-)
-
 let currentFrame = 0
 
 // --- Character selection & follow ---
@@ -137,6 +130,15 @@ const selection = ref<{cell: [number, number]; artistIndex: number} | null>(
 
 const selectedArtist = computed(() =>
 	selection.value ? ARTISTS[selection.value.artistIndex] : null
+)
+
+// Keyboard steering. The centre of the screen is resolved on demand rather
+// than captured, so a pattern built around the middle of the grid keeps
+// landing where the visitor is looking even after they pan. While a dancer
+// is being watched, patterns that could swallow it are refused.
+const patternControl = usePatternControl(
+	() => zui.screenToWorld(window.innerWidth / 2, window.innerHeight / 2),
+	() => selection.value !== null
 )
 
 // --- Bubble placement ---
@@ -325,6 +327,19 @@ function updateFollowTarget() {
 	const sel = selection.value
 	if (!sel || !tileMap) return
 
+	// Frame 0 shows the dancer on the boundary it just crossed, but the
+	// pattern that will draw its new cell only lands next tick — reading the
+	// outgoing one gives a stale entry side, and with the centred patterns
+	// re-anchoring to the camera every step that briefly threw the view a
+	// cell off. The crossing itself tells us where the dancer stands.
+	if (currentFrame % 8 === 0 && lastExit) {
+		zui.followTarget.value = [
+			sel.cell[0] + 0.5 - lastExit[0] / 2,
+			sel.cell[1] + 0.5 - lastExit[1] / 2,
+		]
+		return
+	}
+
 	const move = tileMap.currentPattern?.get(sel.cell[0], sel.cell[1])
 	if (!move) return
 
@@ -342,6 +357,7 @@ function updateFollowTarget() {
 
 function deselect() {
 	selection.value = null
+	lastExit = null
 	zui.followTarget.value = null
 }
 
@@ -392,6 +408,9 @@ zui.onTap((clientX, clientY) => {
 	zui.followTarget.value = [cell[0] + 0.5, cell[1] + 0.5]
 })
 
+// The step the tracked dancer took at the last frame wrap
+let lastExit: [number, number] | null = null
+
 const DIRECTION_DELTA: Partial<Record<Direction, [number, number]>> = {
 	[Direction.Up]: [0, -1],
 	[Direction.Right]: [1, 0],
@@ -416,6 +435,7 @@ function advanceSelection() {
 		return
 	}
 
+	lastExit = delta
 	sel.cell = [sel.cell[0] + delta[0], sel.cell[1] + delta[1]]
 	updateFollowTarget()
 }

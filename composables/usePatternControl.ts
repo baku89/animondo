@@ -3,6 +3,7 @@ import type {vec2} from 'linearly'
 
 import type {MovePattern} from '~/utils/patterns'
 import * as Patterns from '~/utils/patterns'
+import {Direction, invertDirection} from '~/utils/tile'
 
 interface Binding {
 	pattern: MovePattern
@@ -79,10 +80,57 @@ export const BINDINGS: Record<string, Binding> = {
 	),
 }
 
-export function usePatternControl(centreCell: () => vec2) {
+const STEP: Partial<Record<Direction, [number, number]>> = {
+	[Direction.Up]: [0, -1],
+	[Direction.Right]: [1, 0],
+	[Direction.Down]: [0, 1],
+	[Direction.Left]: [-1, 0],
+}
+
+// A dancer survives a pattern forever iff every cell keeps it moving and the
+// cell it moves into expects it: out is never None, and the receiving cell's
+// in is the side the dancer arrives on. That also rules out two flows feeding
+// one cell, so a follow can never be overwritten mid-watch either.
+function sustainsDancers(pattern: MovePattern): boolean {
+	let ok = true
+	pattern.iterate((x, y, m) => {
+		if (!ok) return
+		const step = STEP[m.out]
+		if (!step) {
+			ok = false
+			return
+		}
+		if (pattern.get(x + step[0], y + step[1]).in !== invertDirection(m.out)) {
+			ok = false
+		}
+	})
+	return ok
+}
+
+const sustainsCache = new Map<string, boolean>()
+
+function sustains(key: string, isInverted: boolean): boolean {
+	const cacheKey = `${key}:${isInverted}`
+	let known = sustainsCache.get(cacheKey)
+	if (known === undefined) {
+		const base = BINDINGS[key]!.pattern
+		// offset() only shifts toroidally, so centring never changes this
+		known = sustainsDancers(isInverted ? Patterns.invert(base) : base)
+		sustainsCache.set(cacheKey, known)
+	}
+	return known
+}
+
+export function usePatternControl(
+	centreCell: () => vec2,
+	isFollowing: () => boolean = () => false
+) {
 	// What has been asked for, waiting for the next step to pick it up
 	let pendingKey = 'c'
 	let inverted = false
+	// The most recent choice a followed dancer can live through
+	let safeKey = 'c'
+	let safeInverted = false
 
 	useEventListener('keydown', (event: KeyboardEvent) => {
 		if (event.metaKey || event.ctrlKey || event.altKey) return
@@ -93,18 +141,30 @@ export function usePatternControl(centreCell: () => vec2) {
 
 		// Pressing the same key again flips the pattern rather than restating
 		// it, which is how each family reaches its dual.
-		if (key === pendingKey) {
-			inverted = !inverted
-		} else {
-			pendingKey = key
-			inverted = false
-		}
+		const nextInverted = key === pendingKey ? !inverted : false
+
+		// While someone is being watched, refuse any dance that would swallow
+		// them — the gathers, the appear/vanish waves, the rests.
+		if (isFollowing() && !sustains(key, nextInverted)) return
+
+		pendingKey = key
+		inverted = nextInverted
 	})
 
 	// Read once per automaton step. Presses are never acted on where they
 	// arrive, which quantises them to the beat and collapses a flurry inside
 	// one step down to whatever it ended on.
 	function takePattern(): MovePattern {
+		// A lethal pattern may already be running when a dancer is tapped;
+		// fall back to the last survivable choice until the follow ends.
+		if (isFollowing() && !sustains(pendingKey, inverted)) {
+			pendingKey = safeKey
+			inverted = safeInverted
+		} else if (sustains(pendingKey, inverted)) {
+			safeKey = pendingKey
+			safeInverted = inverted
+		}
+
 		const binding = BINDINGS[pendingKey]!
 		const pattern = inverted
 			? Patterns.invert(binding.pattern)
