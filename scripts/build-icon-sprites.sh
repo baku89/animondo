@@ -5,8 +5,10 @@
 # outline carries both black and white, so the colour channels matter and the
 # sheet keeps full RGBA.
 #
-# 128px cells. The button is 2.5rem, which is 120px on a 3x screen, so this has
-# a little headroom and no more. Lossless, because WebP keeps alpha lossless
+# 192px cells. The largest of these is the 4.5rem play button, which wants
+# 144px on a 2x screen and 216px on a 3x — so this is generous on a laptop and
+# a shade short on a phone, where the icon is physically small anyway.
+# Lossless, because WebP keeps alpha lossless
 # even in its lossy mode — on alpha-dominated drawings like these, quality 80
 # buys only ~14% and spends it on fringing along the ink.
 #
@@ -16,7 +18,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-CELL=128
+CELL=192
 OUT=public/icons
 mkdir -p "$OUT"
 

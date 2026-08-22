@@ -7,28 +7,24 @@
 	>
 		<div class="title-sequence__stage">
 			<canvas ref="ink" class="title-sequence__ink" />
-			<Transition name="title-start">
-				<button
-					v-if="ready && !started"
-					class="title-sequence__start"
-					:aria-label="t('tap.title')"
-					:title="t('tap.title')"
-				>
-					<svg
-						class="title-sequence__play"
-						viewBox="0 0 24 24"
-						aria-hidden="true"
-					>
-						<path d="M9 6 18 12 9 18Z" />
-					</svg>
-				</button>
-			</Transition>
+			<CircleIcon
+				v-if="ready && playPresent"
+				class="title-sequence__start"
+				:glyph="PLAY_SHEET"
+				size="4.5rem"
+				state="fixed"
+				:label="t('tap.title')"
+				:leaving="started"
+				@left="playPresent = false"
+			/>
 		</div>
 	</div>
 </template>
 
 <script setup lang="ts">
 import {useElementSize, useIntervalFn} from '@vueuse/core'
+
+import {PLAY_SHEET} from '~/composables/useSpritePlayer'
 
 const props = defineProps<{
 	/** Reveal the start button — the caller decides when everything is loaded. */
@@ -61,6 +57,8 @@ type Phase = 'intro' | 'idle' | 'outro' | 'done'
 const frame = ref(0)
 const phase = ref<Phase>('intro')
 const started = ref(false)
+// Kept mounted after the tap so the drawn exit can play itself out
+const playPresent = ref(true)
 
 const ink = useTemplateRef<HTMLCanvasElement>('ink')
 const {width: inkWidth, height: inkHeight} = useElementSize(ink)
@@ -197,40 +195,4 @@ function onStart() {
 		top calc(100% + 2rem)
 		left 50%
 		translate -50% 0
-		width 4.5rem
-		height 4.5rem
-		display flex
-		align-items center
-		justify-content center
-		border 2px solid black
-		border-radius 50%
-		background white
-		color black
-		cursor pointer
-
-		&:hover
-			background black
-			color white
-
-	&__play
-		width 1.4rem
-		height 1.4rem
-		fill currentColor
-		// A triangle reads as off-centre when its bounding box is centred
-		translate 0.12rem 0
-
-// The button pops up under the finished title rather than fading in
-.title-start-enter-active
-	transition opacity 0.35s ease, translate 0.45s cubic-bezier(0.2, 1.5, 0.4, 1)
-
-.title-start-leave-active
-	transition opacity 0.2s ease
-
-.title-start-enter-from
-	opacity 0
-	// Keeps the -50% that centres the button under the title
-	translate -50% 1.5rem
-
-.title-start-leave-to
-	opacity 0
 </style>

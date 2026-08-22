@@ -6,18 +6,15 @@
 			@start="audio.start"
 			@done="onTitleDone"
 		/>
-		<Transition name="about-pop">
-			<button
-				v-if="aboutVisible"
-				class="about-button"
-				:class="{'about-button--close': aboutOpen}"
-				:aria-label="aboutOpen ? t('about.close') : t('about.button.label')"
-				:title="aboutOpen ? t('about.close') : t('about.button.label')"
-				@click="aboutOpen = !aboutOpen"
-			>
-				{{ aboutOpen ? '×' : '?' }}
-			</button>
-		</Transition>
+		<CircleIcon
+			v-if="aboutVisible"
+			class="about-button"
+			:glyph="ABOUT_SHEET"
+			size="3.25rem"
+			:state="aboutOpen ? 'close' : 'about'"
+			:label="aboutOpen ? t('about.close') : t('about.button.label')"
+			@click="aboutOpen = !aboutOpen"
+		/>
 		<AboutModal :open="aboutOpen" @close="aboutOpen = false" />
 		<canvas ref="canvas" class="canvas" />
 		<Transition name="bubble">
@@ -58,6 +55,7 @@ import TileFragmentShader from '~/components/shaders/tile.frag?raw'
 import {useKawachiAudio} from '~/composables/useKawachiAudio'
 import {usePatternControl} from '~/composables/usePatternControl'
 import {useRegl} from '~/composables/useRegl'
+import {ABOUT_SHEET} from '~/composables/useSpritePlayer'
 import {useVideoTextureArray} from '~/composables/useVideoTextureArray'
 import {useZUI} from '~/composables/useZUI'
 import {ARTISTS} from '~/utils/artists'
@@ -363,44 +361,12 @@ main
 	width 100vw
 	height 100svh
 
-// The ? pops in rather than fading, so it reads as arriving
-.about-pop-enter-active
-	transition opacity 0.3s ease, scale 0.5s cubic-bezier(0.2, 1.7, 0.4, 1)
-
-.about-pop-enter-from
-	opacity 0
-	scale 0.2
-
 .about-button
 	position fixed
 	top 1rem
 	right 1rem
-	width 2.5rem
-	height 2.5rem
-	display flex
-	align-items center
-	justify-content center
-	padding 0
-	border 2px solid black
-	border-radius 50%
-	background white
-	color black
-	font-size 1.25rem
-	font-weight bold
-	line-height 1
-	cursor pointer
 	// Above the about modal, so the same button closes what it opened
 	z-index 110
-
-	&:hover
-		background black
-		color white
-
-	// The multiplication sign sits smaller than the question mark at the
-	// same size, so bump it to keep the circle looking evenly filled
-	&--close
-		font-size 1.6rem
-		font-weight normal
 
 
 .canvas
