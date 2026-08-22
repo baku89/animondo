@@ -16,6 +16,10 @@
 	-webkit-text-size-adjust 100%
 	interpolate-size allow-keywords
 
+	// The About panel's column, and the title, which is set wider than it
+	--panel-width 36rem
+	--title-width min(calc(var(--panel-width) * 1.2), 86vw)
+
 *, &::before, &::after
 	-webkit-appearance none
 	appearance none
@@ -52,3 +56,13 @@ body
 
 with-alpha($color, $alpha)
 	unquote('color-mix(in hsl, ' + $color + ' ' + ($alpha * 100) + '%, transparent)')
+
+.visually-hidden
+	position absolute
+	width 1px
+	height 1px
+	margin -1px
+	padding 0
+	overflow hidden
+	clip-path inset(50%)
+	white-space nowrap

@@ -155,6 +155,15 @@ const BUBBLE_MIN_WIDTH = 288
 type BubbleSide = 'top' | 'bottom' | 'left' | 'right'
 const bubbleSide = ref<BubbleSide>('top')
 
+// The hand-drawn frame's boil frames are only requested by CSS once the
+// first bubble opens; preload them so it doesn't flicker in piecemeal.
+useHead({
+	link: [0, 1, 2].flatMap(i => [
+		{rel: 'preload', as: 'image' as const, href: `/animondo/bubble/frame_${i}.webp`},
+		{rel: 'preload', as: 'image' as const, href: `/animondo/bubble/tail_${i}.webp`},
+	]),
+})
+
 const {width: winWidth, height: winHeight} = useWindowSize()
 
 // Half of the on-screen footprint reserved for the character, zoom-aware
@@ -203,7 +212,7 @@ const bubbleStyle = computed(() => {
 			return {
 				left: `${edge}px`,
 				top: `${ay}px`,
-				transform: 'translateY(-50%)',
+				translate: '0 -50%',
 				width: `${Math.min(vw - BUBBLE_MARGIN - edge, BUBBLE_MAX_WIDTH)}px`,
 				maxHeight: `${vh - 2 * BUBBLE_TOP_CLEARANCE}px`,
 			}
@@ -213,7 +222,7 @@ const bubbleStyle = computed(() => {
 			return {
 				right: `${vw - edge}px`,
 				top: `${ay}px`,
-				transform: 'translateY(-50%)',
+				translate: '0 -50%',
 				width: `${Math.min(edge - BUBBLE_MARGIN, BUBBLE_MAX_WIDTH)}px`,
 				maxHeight: `${vh - 2 * BUBBLE_TOP_CLEARANCE}px`,
 			}
@@ -223,7 +232,7 @@ const bubbleStyle = computed(() => {
 			return {
 				top: `${edge}px`,
 				left: `${ax}px`,
-				transform: 'translateX(-50%)',
+				translate: '-50% 0',
 				width: `${Math.min(vw - 2 * BUBBLE_MARGIN, BUBBLE_MAX_WIDTH)}px`,
 				maxHeight: `${vh - BUBBLE_BOTTOM_CLEARANCE - edge}px`,
 			}
@@ -234,7 +243,7 @@ const bubbleStyle = computed(() => {
 			return {
 				bottom: `${vh - edge}px`,
 				left: `${ax}px`,
-				transform: 'translateX(-50%)',
+				translate: '-50% 0',
 				width: `${Math.min(vw - 2 * BUBBLE_MARGIN, BUBBLE_MAX_WIDTH)}px`,
 				maxHeight: `${edge - BUBBLE_TOP_CLEARANCE}px`,
 			}
@@ -501,52 +510,67 @@ main
 	flex-direction column
 	position fixed
 	z-index 15
-	padding 0.75rem 1.5rem
-	border 2px solid black
-	border-radius 1rem
-	background white
+	padding 0.5rem 0.75rem
+	// Hand-drawn frame: one square drawing carries the four corners, the
+	// repeating edges and the white fill (border-image-slice `fill`). The
+	// source is 1024px with 128px slices shown at 16px, so a 2x screen still
+	// samples it 4:1 — see scripts/build-bubble-samples.py for the contract.
+	border 16px solid transparent
+	border-image url('/animondo/bubble/frame_0.webp') 128 fill round
+	// Boil at 12 fps, same clock as the hand-drawn icons
+	animation bubble-boil 0.25s steps(1) infinite
 	text-align center
 	line-height 1.5
 
-	// Tail: a white square with two black edges, rotated into a diamond so
-	// its outward corner points at the character. Which two edges carry the
-	// border decides which way the corner points.
+	// Tail: its own drawing (tip pointing down), whose white fill masks the
+	// border line running behind it. Rotated per side below.
 	&::after
 		content ''
 		position absolute
-		width 14px
-		height 14px
-		background white
+		width 36px
+		height 36px
+		background url('/animondo/bubble/tail_0.webp') center / contain no-repeat
+		animation bubble-tail-boil 0.25s steps(1) infinite
 
-	// Bubble above the character — tail on the bottom edge, pointing down
-	&--top::after
-		bottom -8px
-		left 50%
-		border-right 2px solid black
-		border-bottom 2px solid black
-		transform translateX(-50%) rotate(45deg)
+	// Bubble above the character — tail below, pointing down. The 34px
+	// offset (from the padding box) leaves the tail's root just touching
+	// the border line rather than sinking into the balloon; --trim-from is
+	// the enter animation's first frame, a sliver around the tail.
+	&--top
+		--trim-from inset(calc(100% - 4px) calc(50% - 24px) -24px calc(50% - 24px))
 
-	&--bottom::after
-		top -8px
-		left 50%
-		border-top 2px solid black
-		border-left 2px solid black
-		transform translateX(-50%) rotate(45deg)
+		&::after
+			bottom -34px
+			left 50%
+			translate -50% 0
+
+	&--bottom
+		--trim-from inset(-24px calc(50% - 24px) calc(100% - 4px) calc(50% - 24px))
+
+		&::after
+			top -34px
+			left 50%
+			translate -50% 0
+			rotate 180deg
 
 	// Bubble to the right of the character — tail on the left edge
-	&--right::after
-		left -8px
-		top 50%
-		border-bottom 2px solid black
-		border-left 2px solid black
-		transform translateY(-50%) rotate(45deg)
+	&--right
+		--trim-from inset(calc(50% - 24px) calc(100% - 4px) calc(50% - 24px) -24px)
 
-	&--left::after
-		right -8px
-		top 50%
-		border-top 2px solid black
-		border-right 2px solid black
-		transform translateY(-50%) rotate(45deg)
+		&::after
+			left -34px
+			top 50%
+			translate 0 -50%
+			rotate 90deg
+
+	&--left
+		--trim-from inset(calc(50% - 24px) -24px calc(50% - 24px) calc(100% - 4px))
+
+		&::after
+			right -34px
+			top 50%
+			translate 0 -50%
+			rotate -90deg
 
 	&__close
 		position absolute
@@ -605,10 +629,36 @@ main
 			&:hover
 				opacity 0.6
 
-.bubble-enter-active, .bubble-leave-active
-	transition opacity 0.25s ease, translate 0.25s ease
+@keyframes bubble-boil
+	0%
+		border-image-source url('/animondo/bubble/frame_0.webp')
+	33.3%
+		border-image-source url('/animondo/bubble/frame_1.webp')
+	66.7%
+		border-image-source url('/animondo/bubble/frame_2.webp')
 
-.bubble-enter-from, .bubble-leave-to
-	opacity 0
-	translate 0 0.5rem
+@keyframes bubble-tail-boil
+	0%
+		background-image url('/animondo/bubble/tail_0.webp')
+	33.3%
+		background-image url('/animondo/bubble/tail_1.webp')
+	66.7%
+		background-image url('/animondo/bubble/tail_2.webp')
+
+// Enter/leave by trimming the drawn line: clip-path uncovers the bubble
+// from the tail side outward, so the ink keeps its thickness instead of
+// being scaled. Quantized to 12 fps. The -24px outset keeps the tail
+// (which pokes past the border box) inside the clip; when the animation
+// ends, clip-path falls back to none, which renders the same.
+@keyframes bubble-trim
+	from
+		clip-path var(--trim-from)
+	to
+		clip-path inset(-24px)
+
+.bubble-enter-active
+	animation bubble-trim 0.25s steps(3, jump-start)
+
+.bubble-leave-active
+	animation bubble-trim 0.25s steps(3, jump-start) reverse both
 </style>

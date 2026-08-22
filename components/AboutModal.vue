@@ -19,7 +19,10 @@
 					</div>
 				</header>
 				<div class="about-modal__body">
-					<h1>{{ t('about.title') }}</h1>
+					<h1 class="about-modal__title">
+						<span class="visually-hidden">{{ t('about.title') }}</span>
+						<AnimondoTitle />
+					</h1>
 					<p>{{ t('about.body') }}</p>
 					<dl>
 						<dt>{{ t('about.artists.label') }}</dt>
@@ -62,7 +65,7 @@ onKeyStroke('Escape', () => {
 
 	&__panel
 		width 100%
-		max-width 36rem
+		max-width var(--panel-width)
 		color black
 		line-height 1.7
 
@@ -92,10 +95,13 @@ onKeyStroke('Escape', () => {
 				background rgba(0, 0, 0, 0.06)
 
 	&__body
-		h1
-			margin 0 0 1rem
-			font-size 1.75rem
-			line-height 1.3
+		// Set wider than the column it heads, so centre it on that column
+		.about-modal__title
+			width var(--title-width)
+			margin 0 0 1.5rem
+			position relative
+			left 50%
+			translate -50% 0
 
 		p
 			margin 0 0 1.5rem
