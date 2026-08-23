@@ -107,18 +107,26 @@ export function createSpritePlayer(sheet: SpriteSheet, initialState: string) {
 		}
 	}
 
+	// Once the exit starts, nothing may interrupt it — a pointerleave that
+	// trails the dismissing tap used to steer the outline back into its
+	// loop, stranding the circle on screen after the glyph had gone.
+	let leaving = false
+
 	/**
 	 * Play the icon out. Where no leaving animation was drawn, arriving runs
 	 * backwards instead — which is the plan for the outline until one exists.
 	 */
 	function dismiss() {
-		const leaving = ['dissapear', 'disappear'].find(name => name in sections)
-		if (leaving) begin(leaving)
+		if (leaving) return
+		leaving = true
+
+		const exit = ['dissapear', 'disappear'].find(name => name in sections)
+		if (exit) begin(exit)
 		else begin('appear', {reverse: true})
 	}
 
 	function setState(next: string) {
-		if (next === state) return
+		if (leaving || next === state) return
 
 		const from = state
 		state = next
