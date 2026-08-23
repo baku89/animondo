@@ -1,12 +1,10 @@
 import {vec2} from 'linearly'
-import type Regl from 'regl'
 
 import {Array2D} from './Array2D'
 import {MovePattern} from './patterns'
 import {Direction, moveToTileDisplay, tileDisplayToColorValue} from './tile'
 
 interface TileMapOptions {
-	regl: Regl.Regl
 	width: number
 	height: number
 	numberOfVideos: number
@@ -56,9 +54,6 @@ export class TileMap {
 	/** タイル情報を格納したテクスチャのデータ。赤にindex, 緑にその他の情報を格納 */
 	#pixels: Uint8Array
 
-	/** OpenGL用のタイル情報をカラー値として保存したテクスチャ。 */
-	#texture: Regl.Texture2D
-
 	#patternGenerator: PatternGenerator | null = null
 	#currentPattern: MovePattern | null = null
 	#nextPattern: MovePattern | null = null
@@ -88,20 +83,15 @@ export class TileMap {
 			height: this.height,
 			initialize: () => this.#generateTileInfo!(0, vec2.zero, 0),
 		})
-
-		this.#texture = this.options.regl.texture({
-			width: this.width,
-			height: this.height,
-			format: 'rgb',
-			type: 'uint8',
-			mag: 'nearest',
-			min: 'nearest',
-			wrap: 'repeat',
-		})
 	}
 
-	get texture(): Regl.Texture2D {
-		return this.#texture
+	/**
+	 * The tile states packed as RGB pixels, ready to become the shader's map
+	 * texture. The renderer owns the GPU side; this class only fills the
+	 * buffer, which is reused — copy (or upload) before the next step.
+	 */
+	get pixels(): Uint8Array {
+		return this.#pixels
 	}
 
 	/** The interpolated pattern governing the current 8-frame step */
@@ -144,7 +134,7 @@ export class TileMap {
 				: secondResult.value.move
 		)
 
-		this.#updateTexture()
+		this.#updatePixels()
 	}
 
 	/**
@@ -234,11 +224,11 @@ export class TileMap {
 
 		this.#nextPattern = nextPattern
 
-		this.#updateTexture()
+		this.#updatePixels()
 	}
 
-	// テクスチャを更新（GPUに送信）
-	#updateTexture() {
+	// タイル状態をピクセルバッファへ書き出す（GPU への転送はレンダラーの仕事）
+	#updatePixels() {
 		if (!this.#currentPattern) return
 
 		this.#currentPattern.iterate((x, y, move) => {
@@ -258,12 +248,5 @@ export class TileMap {
 				this.#pixels[offset + 1] = state
 			}
 		})
-
-		this.#texture.subimage(this.#pixels)
-	}
-
-	// 破棄
-	destroy() {
-		this.#texture.destroy()
 	}
 }

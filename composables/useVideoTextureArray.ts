@@ -1,6 +1,7 @@
 import type Regl from 'regl'
 
-import {demuxMp4Video} from '~/utils/mp4Demux'
+import type {SpriteDecoder} from '~/utils/spriteDecoder'
+import {createSpriteDecoder, ensureDecoded} from '~/utils/spriteDecoder'
 
 import {useVideoTexture} from './useVideoTexture'
 
@@ -10,13 +11,14 @@ interface Backend {
 }
 
 /**
- * The eight artist sprites as regl textures, one frame at a time.
+ * The eight artist sprites as regl textures, one frame at a time — the
+ * main-thread fallback for browsers that cannot run the worker renderer
+ * (see useTileRenderer).
  *
- * The preferred backend decodes through WebCodecs: the sprites are all-intra
- * H.264, so any frame is one EncodedVideoChunk fed to a VideoDecoder and one
- * flush() away — deterministic, no currentTime convergence, no seek jank.
- * Only the current frame ever lives on the GPU, so memory stays at one
- * texture per artist, same as the video element ever offered.
+ * The preferred backend decodes through WebCodecs (utils/spriteDecoder):
+ * deterministic, no currentTime convergence, no seek jank. Only the current
+ * frame ever lives on the GPU, so memory stays at one texture per artist,
+ * same as the video element ever offered.
  *
  * Browsers without VideoDecoder fall back to the old <video> + seek path.
  */
@@ -52,14 +54,8 @@ export function useVideoTextureArray(regl: Regl.Regl, videoSources: string[]) {
 
 // --- WebCodecs backend ---
 
-interface CodecSprite {
+interface CodecSprite extends SpriteDecoder {
 	texture: Regl.Texture2D
-	decoder: VideoDecoder
-	chunks: EncodedVideoChunk[]
-	/** Decoded frames waiting for upload, keyed by frame index */
-	frames: Map<number, VideoFrame>
-	/** Serializes decode+flush per sprite */
-	chain: Promise<void>
 }
 
 async function loadCodecBackend(
@@ -113,90 +109,33 @@ async function loadCodecBackend(
 
 	const sprites = await Promise.all(
 		videoSources.map(async (src): Promise<CodecSprite> => {
-			const response = await fetch('/animondo/' + src)
-			if (!response.ok) throw new Error(`${src}: HTTP ${response.status}`)
-			const buffer = await response.arrayBuffer()
-			const video = demuxMp4Video(buffer)
-
-			const config = {
-				codec: video.codec,
-				codedWidth: video.width,
-				codedHeight: video.height,
-				description: video.description,
-				optimizeForLatency: true,
-			}
-			const {supported} = await VideoDecoder.isConfigSupported(config)
-			if (!supported) throw new Error(`${src}: ${video.codec} unsupported`)
-
-			const sprite: CodecSprite = {
-				texture: null as unknown as Regl.Texture2D,
-				decoder: null as unknown as VideoDecoder,
-				chunks: video.samples.map(
-					(sample, index) =>
-						new EncodedVideoChunk({
-							type: sample.key ? 'key' : 'delta',
-							timestamp: index,
-							data: new Uint8Array(buffer, sample.offset, sample.size),
-						})
-				),
-				frames: new Map(),
-				chain: Promise.resolve(),
-			}
-
-			sprite.decoder = new VideoDecoder({
-				output: frame => {
-					sprite.frames.get(frame.timestamp)?.close()
-					sprite.frames.set(frame.timestamp, frame)
-				},
-				error: error => console.error(`${src}:`, error),
-			})
-			sprite.decoder.configure(config)
+			const decoder = await createSpriteDecoder('/animondo/' + src)
 
 			// Prime frame 0 so the texture is born with real content
-			sprite.decoder.decode(sprite.chunks[0]!)
-			await sprite.decoder.flush()
-			const first = sprite.frames.get(0)!
-			canvas.width = video.width
-			canvas.height = video.height
+			await ensureDecoded(decoder, 0)
+			const first = decoder.frames.get(0)!
+			canvas.width = decoder.width
+			canvas.height = decoder.height
 			context.drawImage(first, 0, 0)
 			first.close()
-			sprite.frames.delete(0)
-			sprite.texture = regl.texture(canvas)
+			decoder.frames.delete(0)
 
-			return sprite
+			// Linear, not regl's nearest default — see the worker's textures
+			return {
+				...decoder,
+				texture: regl.texture({data: canvas, mag: 'linear', min: 'linear'}),
+			}
 		})
 	)
 
 	textureArray.value = sprites.map(sprite => sprite.texture)
 
-	function ensure(sprite: CodecSprite, frameNumber: number) {
-		sprite.chain = sprite.chain
-			.then(async () => {
-				if (sprite.frames.has(frameNumber)) return
-				// Anything else still stored was skipped over; let it go
-				for (const [index, frame] of sprite.frames) {
-					frame.close()
-					sprite.frames.delete(index)
-				}
-				sprite.decoder.decode(sprite.chunks[frameNumber]!)
-				// flush() drains the decoder deterministically — all-intra
-				// input means no inter-frame state is lost by doing so
-				await sprite.decoder.flush()
-			})
-			// A rejected link would poison the chain for good: every later
-			// ensure would inherit the rejection and the pattern clock,
-			// which waits on present(), would never step again. Absorb it —
-			// one dropped frame beats a frozen automaton.
-			.catch(error => console.error(error))
-		return sprite.chain
-	}
-
 	return {
 		prepare: async frameNumber => {
-			await Promise.all(sprites.map(sprite => ensure(sprite, frameNumber)))
+			await Promise.all(sprites.map(sprite => ensureDecoded(sprite, frameNumber)))
 		},
 		present: async frameNumber => {
-			await Promise.all(sprites.map(sprite => ensure(sprite, frameNumber)))
+			await Promise.all(sprites.map(sprite => ensureDecoded(sprite, frameNumber)))
 			for (const sprite of sprites) {
 				const frame = sprite.frames.get(frameNumber)
 				if (!frame) continue

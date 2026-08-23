@@ -2,27 +2,59 @@
 	<main>
 		<TitleSequence
 			v-if="titleVisible"
-			:ready="assetsReady"
+			:ready="assetsReady || startupFailed"
+			:unsupported="startupFailed"
 			@start="audio.start"
 			@done="onTitleDone"
 		/>
 		<CircleIcon
-			v-if="aboutVisible"
+			v-if="aboutVisible && aboutButtonShown"
 			class="about-button"
 			:glyph="ABOUT_SHEET"
 			size="clamp(3rem, 10vw, 6rem)"
 			:state="aboutOpen ? 'close' : 'about'"
 			:label="aboutOpen ? t('about.close') : t('about.button.label')"
+			:leaving="launchpadOpen"
 			@click="aboutOpen = !aboutOpen"
+			@left="aboutButtonShown = false"
 		/>
 		<CircleIcon
-			v-if="soundVisible"
+			v-if="soundVisible && soundButtonShown"
 			class="sound-button"
 			:glyph="SOUND_SHEET"
 			size="clamp(3rem, 10vw, 6rem)"
 			:state="audio.muted.value ? 'mute' : 'unmute'"
 			:label="audio.muted.value ? t('sound.unmute') : t('sound.mute')"
+			:leaving="launchpadOpen"
 			@click="audio.toggleMuted"
+			@left="soundButtonShown = false"
+		/>
+		<SoundTooltip
+			v-if="soundTipVisible"
+			:leaving="soundTipLeaving"
+			@left="soundTipVisible = false"
+		/>
+		<ExploreTooltip
+			v-if="exploreTipCell && exploreTipAt"
+			:leaving="exploreTipLeaving"
+			:style="exploreTipStyle"
+			@left="exploreTipCell = null"
+		/>
+		<CircleIcon
+			v-if="launchpadButtonVisible"
+			class="launchpad-button"
+			:glyph="PADS_SHEET"
+			size="clamp(3rem, 10vw, 6rem)"
+			:state="launchpadOpen ? 'close' : 'fixed'"
+			:label="launchpadOpen ? t('launchpad.close') : t('launchpad.open')"
+			@click="toggleLaunchpad"
+		/>
+		<PatternLaunchpad
+			v-if="launchpadOpen"
+			:queued-pad="patternControl.queuedPadId.value"
+			:active-pad="patternControl.activePadId.value"
+			:activation-seq="patternControl.activationSeq.value"
+			@tap="patternControl.tapPad"
 		/>
 		<AboutModal :open="aboutOpen" @close="aboutOpen = false" />
 		<canvas
@@ -37,44 +69,84 @@
 				:class="`profile-bubble--${bubbleSide}`"
 				:style="bubbleStyle"
 			>
-				<button
-					class="profile-bubble__close"
-					:aria-label="t('about.close')"
-					@click="deselect"
-				>
-					×
-				</button>
-				<a
-					class="profile-bubble__name"
-					:href="selectedArtist.url[locale]"
-					target="_blank"
-					rel="noopener"
-				>
-					{{ selectedArtist.name[locale] }}
-				</a>
-				<!-- Markdown rendered from content/artists/, authored in this
-					repo — no third-party input reaches this sink. -->
-				<!-- eslint-disable vue/no-v-html -->
-				<div
-					class="profile-bubble__text"
-					v-html="selectedArtist.profileHtml[locale]"
-				/>
-				<!-- eslint-enable vue/no-v-html -->
+				<!-- Hand-drawn glyphs carry the visuals; the labels stay for
+					assistive tech -->
+				<div class="profile-bubble__controls">
+					<LocaleSwitch class="profile-bubble__lang" />
+					<button
+						class="profile-bubble__close"
+						:aria-label="t('about.close')"
+						@click="deselect"
+					/>
+				</div>
+				<div class="profile-bubble__body">
+					<header class="profile-bubble__header">
+						<div class="profile-bubble__names">
+							<span class="profile-bubble__name">{{
+								selectedArtist.name[locale]
+							}}</span>
+							<span class="profile-bubble__name-alt">{{
+								selectedArtist.name[otherLocale]
+							}}</span>
+						</div>
+						<a
+							class="profile-bubble__site"
+							:href="selectedArtist.url[locale]"
+							target="_blank"
+							rel="noopener"
+							:aria-label="t('bubble.site')"
+						/>
+					</header>
+					<figure class="profile-bubble__work">
+						<img
+							:src="selectedArtist.work.image"
+							:alt="selectedArtist.work.title[locale]"
+						/>
+						<figcaption>{{ workCaption }}</figcaption>
+					</figure>
+					<!-- Markdown rendered from content/artists/, authored in this
+						repo — no third-party input reaches this sink. -->
+					<!-- eslint-disable vue/no-v-html -->
+					<div
+						class="profile-bubble__text"
+						v-html="selectedArtist.profileHtml[locale]"
+					/>
+					<!-- eslint-enable vue/no-v-html -->
+				</div>
 			</div>
 		</Transition>
+		<!-- Invisible copy of everything the bubbles will ever set in type, so
+			Typekit's dynamic subsetting fetches the Ryumin glyphs on load
+			instead of swapping them in when the first bubble opens. -->
+		<!-- eslint-disable vue/no-v-html -->
+		<div class="font-warmup" aria-hidden="true">
+			<template v-for="artist in ARTISTS" :key="artist.id">
+				<span>{{ artist.name.en }}{{ artist.name.ja }}</span>
+				<span>{{ artist.work.title.en }}{{ artist.work.title.ja }}</span>
+				<span v-html="artist.profileHtml.en" />
+				<span v-html="artist.profileHtml.ja" />
+			</template>
+		</div>
+		<!-- eslint-enable vue/no-v-html -->
 	</main>
 </template>
 
 <script setup lang="ts">
-import {useRafFn, useTimeoutFn, useWindowSize} from '@vueuse/core'
-import type Regl from 'regl'
+import {
+	useElementSize,
+	useMediaQuery,
+	useRafFn,
+	useTimeoutFn,
+	useWindowSize,
+	whenever,
+} from '@vueuse/core'
 
 import TileFragmentShader from '~/components/shaders/tile.frag?raw'
 import {useKawachiAudio} from '~/composables/useKawachiAudio'
 import {usePatternControl} from '~/composables/usePatternControl'
-import {useRegl} from '~/composables/useRegl'
-import {ABOUT_SHEET, SOUND_SHEET} from '~/composables/useSpritePlayer'
-import {useVideoTextureArray} from '~/composables/useVideoTextureArray'
+import {ABOUT_SHEET, PADS_SHEET, SOUND_SHEET} from '~/composables/useSpritePlayer'
+import type {TileRenderer} from '~/composables/useTileRenderer'
+import {createTileRenderer} from '~/composables/useTileRenderer'
 import {useZUI} from '~/composables/useZUI'
 import {ARTISTS} from '~/utils/artists'
 import {BEAT_TIMES} from '~/utils/beats'
@@ -86,24 +158,6 @@ import {TileMap} from '~/utils/TileMap'
 
 const canvas = useTemplateRef('canvas')
 
-// Define uniforms interface
-interface Uniforms {
-	resolution: Regl.Vec2
-	video0: Regl.Texture2D
-	video1: Regl.Texture2D
-	video2: Regl.Texture2D
-	video3: Regl.Texture2D
-	video4: Regl.Texture2D
-	video5: Regl.Texture2D
-	video6: Regl.Texture2D
-	video7: Regl.Texture2D
-	tileMap: Regl.Texture2D
-	tileMapSize: Regl.Vec2
-	navMatrix: Regl.Mat3
-	focusCell: Regl.Vec2
-	focusFade: number
-}
-
 const audio = useKawachiAudio()
 const {t, locale} = useI18n()
 
@@ -113,6 +167,10 @@ const aboutOpen = ref(false)
 // starts the piece, at which point it is dropped for good.
 const titleVisible = ref(true)
 const assetsReady = ref(false)
+
+// Set when the piece cannot be set up after all — see startupError below.
+// The title screen comes back holding the recording instead.
+const startupFailed = ref(false)
 
 // Nothing but the dance for the first moments — the ? arrives with the
 // full flood on turn 5, together with the controls unlocking.
@@ -142,8 +200,167 @@ watch(
 	{immediate: true}
 )
 
-let videoTextureArray: ReturnType<typeof useVideoTextureArray> | null = null
+// --- "Sound on" tooltip ---
+
+// A speech bubble off the sound toggle's corner, warning that the piece has
+// audio. It appears as the toggle's draw-in lands (11 frames at 12 fps,
+// overlapping the last two), stands for as long as the title screen does,
+// and leaves when the visitor starts the piece.
+const soundTipVisible = ref(false)
+const soundTipLeaving = ref(false)
+
+const {start: revealSoundTip} = useTimeoutFn(
+	() => {
+		if (!audio.hasStarted.value) soundTipVisible.value = true
+	},
+	(9 / 12) * 1000,
+	{immediate: false}
+)
+watch(soundVisible, visible => {
+	if (visible) revealSoundTip()
+})
+whenever(audio.hasStarted, () => {
+	soundTipLeaving.value = true
+})
+// Nothing will ever sound on the failure screen
+watch(startupFailed, failed => {
+	if (failed) soundTipLeaving.value = true
+})
+
+// --- "Explore" tooltip ---
+
+// Two turns after the stage unlocks, a dancer near the centre of the
+// screen pipes up with the navigation hint (drag and scroll — pinch and
+// swipe for coarse pointers), and falls quiet three seconds later. Any tap
+// or opened panel dismisses it early: the visitor is already exploring.
+const EXPLORE_TIP_FRAME = 48
+const exploreTipCell = ref<[number, number] | null>(null)
+const exploreTipLeaving = ref(false)
+// The speaker's drawn centre in screen px, refreshed every drawn frame
+const exploreTipAt = ref<[number, number] | null>(null)
+
+const exploreTipStyle = computed<Record<string, string>>(() => {
+	const at = exploreTipAt.value
+	if (!at) return {}
+	// The component turns the point into its own placement (tail-tip maths)
+	return {'--speaker-x': `${at[0]}px`, '--speaker-y': `${at[1]}px`}
+})
+
+const {start: expireExploreTip} = useTimeoutFn(
+	() => (exploreTipLeaving.value = true),
+	3000,
+	{immediate: false}
+)
+
+function revealExploreTip() {
+	if (!tileMap || selection.value || aboutOpen.value || launchpadOpen.value) {
+		return
+	}
+
+	// The balloon hangs up-right of its speaker, so aim a touch below and
+	// left of the screen's centre and take the dancer drawn nearest that
+	const world = zui.screenToWorld(
+		window.innerWidth * 0.45,
+		window.innerHeight * 0.6
+	)
+	const [px, py] = [Math.floor(world[0]), Math.floor(world[1])]
+	let best: {cell: [number, number]; d: number} | null = null
+	for (let dy = -1; dy <= 1; dy++) {
+		for (let dx = -1; dx <= 1; dx++) {
+			const candidate: [number, number] = [px + dx, py + dy]
+			const centre = dancerCenter(candidate)
+			if (!centre) continue
+			const d = Math.hypot(centre[0] - world[0], centre[1] - world[1])
+			if (!best || d < best.d) best = {cell: candidate, d}
+		}
+	}
+	if (!best) return
+
+	exploreTipLeaving.value = false
+	exploreTipCell.value = best.cell
+	expireExploreTip()
+}
+
+// The speaker keeps dancing: step its cell along the pattern's out at each
+// turn (called right before nextStep, like advanceSelection), and let the
+// bubble go if the dancer vanishes.
+function advanceExploreTip() {
+	const cell = exploreTipCell.value
+	if (!cell || !tileMap) return
+
+	const move = tileMap.currentPattern?.get(cell[0], cell[1])
+	const delta = move ? DIRECTION_DELTA[move.out] : undefined
+	if (!delta) {
+		exploreTipLeaving.value = true
+		return
+	}
+	exploreTipCell.value = [cell[0] + delta[0], cell[1] + delta[1]]
+}
+
+// Chase the ink, not the cell: the drawn centres move every frame, and the
+// camera may be panning under the bubble
+function updateExploreTip() {
+	const cell = exploreTipCell.value
+	if (!cell) return
+	const centre = dancerCenter(cell)
+	if (centre) {
+		exploreTipAt.value = zui.worldToScreen(centre) as [number, number]
+	}
+}
+
+// --- Pattern launchpad (mobile only) ---
+
+// A full-screen grid of pads that queue patterns by touch. Coarse pointers
+// only: on desktop the keyboard already plays this instrument.
+const isCoarsePointer = useMediaQuery('(pointer: coarse)')
+const launchpadRevealed = ref(false)
+const launchpadOpen = ref(false)
+const launchpadButtonVisible = computed(
+	() => isCoarsePointer.value && launchpadRevealed.value
+)
+
+// The pads' button follows the ? as its own beat, like the sound toggle did
+const {start: revealLaunchpad} = useTimeoutFn(
+	() => (launchpadRevealed.value = true),
+	1000,
+	{immediate: false}
+)
+watch(aboutVisible, visible => {
+	if (visible) revealLaunchpad()
+})
+
+// While the launchpad is open it owns the screen: the other buttons play
+// themselves out and come back when it closes.
+const aboutButtonShown = ref(true)
+const soundButtonShown = ref(true)
+watch(launchpadOpen, open => {
+	if (!open) {
+		aboutButtonShown.value = true
+		soundButtonShown.value = true
+	}
+})
+
+function toggleLaunchpad() {
+	launchpadOpen.value = !launchpadOpen.value
+	if (launchpadOpen.value) {
+		// The grid takes the stage whole: nothing else stays open under it
+		aboutOpen.value = false
+		deselect()
+	}
+}
+
+// A panel over the stage silences the explore hint with it (declared here,
+// after both refs exist)
+watch([aboutOpen, launchpadOpen], ([about, pads]) => {
+	if ((about || pads) && exploreTipCell.value) exploreTipLeaving.value = true
+})
+
+let renderer: TileRenderer | null = null
 let tileMap: TileMap | null = null
+
+// The drawn size follows the element; the backing store is set from it
+// (times devicePixelRatio) on every rendered frame, whichever thread draws
+const {width: canvasWidth, height: canvasHeight} = useElementSize(canvas)
 
 // Initialize ZUI for navigation
 const zui = useZUI(canvas)
@@ -162,10 +379,39 @@ const selectedArtist = computed(() =>
 	selection.value ? ARTISTS[selection.value.artistIndex] : null
 )
 
+// The name in the piece's other language sits under the current one
+const otherLocale = computed(() => (locale.value === 'en' ? 'ja' : 'en'))
+
+// Title and year of the representative work, quoted the local way
+const workCaption = computed(() => {
+	const artist = selectedArtist.value
+	if (!artist) return ''
+	const {title, year} = artist.work
+	return locale.value === 'ja'
+		? `『${title.ja}』（${year}）`
+		: `${title.en} (${year})`
+})
+
 // How far the unwatched crowd fades toward the paper while a dancer is
-// followed (shader-side mix toward white), and its eased current value
-const FOCUS_DIM = 0.5
+// followed (shader-side mix toward white, scrubbed through the crayon
+// veil below), and its eased current value. The veil's own alpha carries
+// most of the wash (the mask's greys average ~0.77); this backs it off a
+// touch further, kept in step with the About panel's veil opacity.
+const FOCUS_DIM = 0.98
 let focusDim = 0
+
+// The crayon veil (public/fade-mask.webp) tiles at HALF the master's size
+// in CSS pixels (the master is drawn at 2x for HiDPI); the texture itself
+// is squeezed to 1024x512 for WebGL1's power-of-two repeat, so the scale
+// stretches it back. Its offset re-rolls every 12 fps tick — the same
+// hash-from-a-sine trick shaders use, keyed to the tick so every rendered
+// frame within one tick agrees.
+const FADE_MASK_TILE = [1136.5, 727.5]
+
+function grainRoll(seed: number): number {
+	const x = Math.sin(seed) * 43758.5453
+	return x - Math.floor(x)
+}
 
 // Keyboard steering. The centre of the screen is resolved on demand rather
 // than captured, so a pattern built around the middle of the grid keeps
@@ -173,7 +419,9 @@ let focusDim = 0
 // is being watched, patterns that could swallow it are refused.
 const patternControl = usePatternControl(
 	() => zui.screenToWorld(window.innerWidth / 2, window.innerHeight / 2),
-	() => selection.value !== null
+	() => selection.value !== null,
+	() => launchpadOpen.value,
+	() => stageInteractive.value
 )
 
 // --- Bubble placement ---
@@ -184,20 +432,29 @@ const BUBBLE_MARGIN = 16
 const BUBBLE_TOP_CLEARANCE = 84
 const BUBBLE_BOTTOM_CLEARANCE = 24
 /** Air between the character's footprint and the bubble, tail included */
-const BUBBLE_GAP = 12
+// Air between the character's extent and the bubble edge, in px. Scales
+// with the zoom so a zoomed-out dancer keeps the bubble snug instead of
+// floating a fixed distance away.
+const BUBBLE_GAP_MAX = 10
 const BUBBLE_MAX_WIDTH = 480
 /** Below this, a side-by-side layout is not worth the squeeze */
 const BUBBLE_MIN_WIDTH = 288
+// The least height a stacked (top/bottom) bubble is guaranteed: a 3:5 box
+// on its own width, capped at 70svh. Squeezed flatter than this the bubble
+// reads as all scroll, so the character gets pushed aside instead.
+const BUBBLE_MIN_HEIGHT_RATIO = 5 / 3
+const BUBBLE_MAX_HEIGHT_SVH = 0.7
 
 /** Where the bubble sits relative to the followed character */
 type BubbleSide = 'top' | 'bottom' | 'left' | 'right'
 const bubbleSide = ref<BubbleSide>('top')
 
-// To keep the camera's travel as small as possible, only the axis that makes
-// room for the bubble moves: the cross axis keeps the character where it was
-// tapped (clamped so the tail can still reach it), and the tail slides along
-// the bubble's edge — as far as just short of the corners — to point at it.
-const bubbleCross = ref(0)
+// The dancer's on-screen position at the moment of the tap. The camera
+// moves it as little as possible: the cross axis stays put (clamped so the
+// tail can still reach it), and the main axis is only pushed as far as the
+// bubble needs its minimum footprint — a dancer tapped mid-screen with room
+// to spare simply stays there.
+const bubbleCharAt = ref<[number, number]>([0, 0])
 /** How close to a bubble corner the tail's centre may slide */
 const TAIL_INSET = 44
 /** Border-image band width; the tail is positioned inside the padding box */
@@ -211,54 +468,132 @@ const clamp = (v: number, lo: number, hi: number) =>
 
 // The hand-drawn frame's boil frames are only requested by CSS once the
 // first bubble opens; preload them so it doesn't flicker in piecemeal.
+// The sound tooltip's frames ride along: its bubble draws itself in the
+// moment it mounts, too late for a preload of its own to help.
 useHead({
-	link: [0, 1, 2].flatMap(i => [
-		{rel: 'preload', as: 'image' as const, href: `/animondo/bubble/frame_${i}.webp`},
-		{rel: 'preload', as: 'image' as const, href: `/animondo/bubble/tail_${i}.webp`},
-	]),
+	link: [
+		...[0, 1, 2, 3].flatMap(i =>
+			['frame', 'tail', 'close', 'web', 'thumb-mask'].map(part => ({
+				rel: 'preload',
+				as: 'image' as const,
+				href: `/animondo/bubble/${part}_${i}.webp`,
+			}))
+		),
+		...[0, 1, 2, 3, 4, 5, 6, 7].map(i => ({
+			rel: 'preload',
+			as: 'image' as const,
+			href: `/animondo/tooltip/bubble_${i}.webp`,
+		})),
+		...[0, 1, 2, 3].flatMap(i =>
+			(['en', 'ja'] as const).map(lang => ({
+				rel: 'preload',
+				as: 'image' as const,
+				href: `/animondo/tooltip/sound-on_${lang}_${i}.webp`,
+			}))
+		),
+	],
 })
+
+// The explore labels follow the pointer's kind, so their preload is
+// reactive — only the four frames per language this device will show
+useHead(() => ({
+	link: [0, 1, 2, 3].flatMap(i =>
+		(['en', 'ja'] as const).map(lang => ({
+			rel: 'preload',
+			as: 'image' as const,
+			href: `/animondo/tooltip/explore_${
+				isCoarsePointer.value ? 'mobile' : 'pc'
+			}_${lang}_${i}.webp`,
+		}))
+	),
+}))
 
 const {width: winWidth, height: winHeight} = useWindowSize()
 
 // Half of the on-screen footprint reserved for the character, zoom-aware
 const charHalf = computed(() =>
 	Math.min(
-		Math.max(zui.pixelsPerCell.value * 0.55 + 12, 60),
+		// 0.55 cells is the ink's actual half-extent; the old fixed +12px
+		// pad and 60px floor kept the bubble hovering far from a zoomed-out
+		// dancer, so the floor is now only what keeps the tail legible.
+		Math.max(zui.pixelsPerCell.value * 0.55, 24),
 		Math.min(winWidth.value, winHeight.value) * 0.25
 	)
 )
 
-// The screen point the camera steers the character to. Only the axis that
-// makes room for the bubble is imposed (pushed toward the edge opposite the
-// bubble); the cross axis stays where the character was tapped, so the
-// camera never pans more than it has to.
+const bubbleGap = computed(() =>
+	clamp(zui.pixelsPerCell.value * 0.08, 3, BUBBLE_GAP_MAX)
+)
+
+// The screen point the camera steers the character to. Both axes start from
+// where the dancer was tapped; the main axis is clamped just far enough that
+// the bubble's minimum footprint fits between the character and the screen
+// edge, so the camera only travels when the room genuinely runs out.
 const characterAnchor = computed<[number, number]>(() => {
 	const vw = winWidth.value
 	const vh = winHeight.value
 	const half = charHalf.value
-	const cross = bubbleCross.value
+	const gap = bubbleGap.value
+	const [charX, charY] = bubbleCharAt.value
 
 	switch (bubbleSide.value) {
 		case 'right':
 		case 'left': {
 			const y = clamp(
-				cross,
+				charY,
 				BUBBLE_TOP_CLEARANCE + TAIL_INSET,
 				vh - BUBBLE_BOTTOM_CLEARANCE - TAIL_INSET
 			)
-			return bubbleSide.value === 'right'
-				? [BUBBLE_MARGIN + half, y]
-				: [vw - BUBBLE_MARGIN - half, y]
+			// The side was only chosen with BUBBLE_MIN_WIDTH of side space on
+			// the whole screen (see onTap), so these bounds cannot cross
+			const x =
+				bubbleSide.value === 'right'
+					? clamp(
+							charX,
+							BUBBLE_MARGIN + half,
+							vw - BUBBLE_MARGIN - BUBBLE_MIN_WIDTH - gap - half
+						)
+					: clamp(
+							charX,
+							BUBBLE_MARGIN + BUBBLE_MIN_WIDTH + gap + half,
+							vw - BUBBLE_MARGIN - half
+						)
+			return [x, y]
 		}
 		default: {
 			const x = clamp(
-				cross,
+				charX,
 				BUBBLE_MARGIN + TAIL_INSET,
 				vw - BUBBLE_MARGIN - TAIL_INSET
 			)
-			return bubbleSide.value === 'bottom'
-				? [x, BUBBLE_TOP_CLEARANCE + half]
-				: [x, vh - BUBBLE_BOTTOM_CLEARANCE - half]
+			// 3:5 of the width the stacked bubble will actually get, capped
+			// at 70svh — see BUBBLE_MIN_HEIGHT_RATIO
+			const bubbleWidth = Math.min(vw - 2 * BUBBLE_MARGIN, BUBBLE_MAX_WIDTH)
+			const minHeight = Math.min(
+				bubbleWidth * BUBBLE_MIN_HEIGHT_RATIO,
+				vh * BUBBLE_MAX_HEIGHT_SVH
+			)
+			// On a screen too short for both, the character's visibility wins
+			// and the bubble squeezes below its minimum, as it always did
+			const y =
+				bubbleSide.value === 'bottom'
+					? clamp(
+							charY,
+							BUBBLE_TOP_CLEARANCE + half,
+							Math.max(
+								vh - BUBBLE_BOTTOM_CLEARANCE - minHeight - gap - half,
+								BUBBLE_TOP_CLEARANCE + half
+							)
+						)
+					: clamp(
+							charY,
+							Math.min(
+								BUBBLE_TOP_CLEARANCE + minHeight + gap + half,
+								vh - BUBBLE_BOTTOM_CLEARANCE - half
+							),
+							vh - BUBBLE_BOTTOM_CLEARANCE - half
+						)
+			return [x, y]
 		}
 	}
 })
@@ -290,14 +625,14 @@ const bubbleStyle = computed<Record<string, string>>(() => {
 		}
 
 		if (side === 'bottom') {
-			const edge = ay + half + BUBBLE_GAP
+			const edge = ay + half + bubbleGap.value
 			return {
 				...common,
 				top: `${edge}px`,
 				maxHeight: `${vh - BUBBLE_BOTTOM_CLEARANCE - edge}px`,
 			}
 		}
-		const edge = ay - half - BUBBLE_GAP
+		const edge = ay - half - bubbleGap.value
 		return {
 			...common,
 			bottom: `${vh - edge}px`,
@@ -305,7 +640,8 @@ const bubbleStyle = computed<Record<string, string>>(() => {
 		}
 	}
 
-	const edge = side === 'right' ? ax + half + BUBBLE_GAP : ax - half - BUBBLE_GAP
+	const edge =
+		side === 'right' ? ax + half + bubbleGap.value : ax - half - bubbleGap.value
 	const common = {
 		...(side === 'right'
 			? {left: `${edge}px`}
@@ -456,19 +792,31 @@ function updateFollowTarget() {
 		return
 	}
 
-	const move = tileMap.currentPattern?.get(sel.cell[0], sel.cell[1])
-	if (!move) return
+	const centre = dancerCenter(sel.cell)
+	if (centre) zui.followTarget.value = centre
+}
 
-	const info = tileMap.getTileInfo(sel.cell[0], sel.cell[1])
+// The dancer's drawn centre in a cell (pattern-space), or null when the
+// cell is empty. Per-artist tracks — each artist drew their own centres.
+function dancerCenter(cell: [number, number]): [number, number] | null {
+	if (!tileMap) return null
+
+	const move = tileMap.currentPattern?.get(cell[0], cell[1])
+	if (!move || (move.in === Direction.None && move.out === Direction.None)) {
+		return null
+	}
+
+	const info = tileMap.getTileInfo(cell[0], cell[1])
 	const display = moveToTileDisplay(move, info.index, info.flipVertical)
 	const [ox, oy] = tileCenter(
+		ARTISTS[info.index]?.id ?? '',
 		display.tile,
 		display.rotation,
 		info.flipVertical,
 		currentFrame % 8
 	)
 
-	zui.followTarget.value = [sel.cell[0] + ox, sel.cell[1] + oy]
+	return [cell[0] + ox, cell[1] + oy]
 }
 
 function deselect() {
@@ -527,25 +875,23 @@ function tickFrame(isLast: boolean) {
 	const frame = currentFrame % 8
 	if (frame === 0 && currentFrame > 0) {
 		advanceSelection()
+		advanceExploreTip()
+		tileMap?.nextStep()
+		verifySelection()
 		if (isLast) {
-			// present() resolves synchronously when frame 0 was prepared
-			// during the previous frame's slot, so texture and pattern
-			// change in one task and nothing of the old turn flashes.
-			videoTextureArray?.present(0).then(() => {
-				tileMap?.nextStep()
-				verifySelection()
-				updateFollowTarget()
-				videoTextureArray?.prepare(1)
-			})
-		} else {
-			tileMap?.nextStep()
-			verifySelection()
+			// The renderer holds the new pattern back until frame 0's
+			// sprites are up, so texture and pattern change in one swap
+			// and nothing of the old turn flashes.
+			renderer?.present(0, tileMap?.pixels).then(() => renderer?.prepare(1))
+		} else if (tileMap) {
+			// Catch-up burst: the pattern advances, the sprites skip
+			renderer?.setTileMapPixels(tileMap.pixels)
 		}
 	} else if (isLast) {
 		// Show this frame, then start the videos toward the next one so
 		// it is decoded and waiting when its slot arrives
-		videoTextureArray?.present(frame).then(() => {
-			videoTextureArray?.prepare((frame + 1) % 8)
+		renderer?.present(frame).then(() => {
+			renderer?.prepare((frame + 1) % 8)
 		})
 	}
 
@@ -555,10 +901,22 @@ function tickFrame(isLast: boolean) {
 		aboutVisible.value = true
 	}
 
+	// Two turns into free play, a dancer offers the navigation hint
+	if (currentFrame === EXPLORE_TIP_FRAME) {
+		revealExploreTip()
+	}
+
 	updateFollowTarget()
 }
 
 useRafFn(() => {
+	advanceBeatClock()
+	renderFrame()
+	// After the camera settles: the hint bubble rides its dancer
+	updateExploreTip()
+})
+
+function advanceBeatClock() {
 	if (!audio.hasStarted.value) return
 	const duration = audio.duration()
 	if (!duration) return
@@ -571,27 +929,74 @@ useRafFn(() => {
 		loopPass = buildFrameTimes(Math.max(loopBeat, 0), duration)
 	}
 
-	// Frames the audio has passed; catch up in a burst if we are
-	// behind (returning from a hidden tab, or the loop seam skipping
-	// the tail of a turn the audio ended inside). Only the last frame
-	// of a burst touches the videos.
-	const elapsed = audio.elapsed()
-	let target: number
-	if (elapsed < duration) {
-		target = framesElapsed(firstPass, elapsed)
-	} else {
+	// Frames the beat grid has passed at the given clock reading; playback
+	// runs 0..duration once, then cycles [loopStart, duration).
+	function frameTarget(elapsed: number): number {
+		if (elapsed < duration) return framesElapsed(firstPass!, elapsed)
 		const cycle = duration - audio.loopStart
 		const turns = Math.floor((elapsed - duration) / cycle)
 		const position = audio.loopStart + ((elapsed - duration) % cycle)
-		target =
-			firstPass.length +
+		return (
+			firstPass!.length +
 			turns * loopPass.length +
 			framesElapsed(loopPass, position)
+		)
 	}
+
+	// Catch-up bursts (a hidden tab, the loop seam) fall out of the same
+	// arithmetic; only the last frame of a burst touches the videos.
+	const target = frameTarget(audio.elapsed())
+
 	while (currentFrame < target) {
 		tickFrame(currentFrame + 1 === target)
 	}
-})
+}
+
+// Issue a draw with this instant's camera and focus. One callback runs the
+// beat clock, settles the camera and draws, so the dancer's cell and the
+// camera can never be a frame apart.
+function renderFrame() {
+	// Nothing draws before the first beat: the standing bridge already
+	// holds turn 1's Birth tiles, and some artists' first appear frame
+	// carries visible ink — it used to peek through the title screen.
+	if (currentFrame === 0 || !renderer) return
+
+	const width = Math.round(canvasWidth.value * window.devicePixelRatio)
+	const height = Math.round(canvasHeight.value * window.devicePixelRatio)
+	if (!width || !height) return
+
+	// Settle the camera (flick glide, follow) right before the draw is issued
+	zui.syncCamera()
+
+	// While a dancer is watched, the rest of the crowd recedes toward
+	// the paper — through the boiling crayon veil (see tile.frag).
+	// Eased per rendered frame.
+	const sel = selection.value
+	focusDim += ((sel ? FOCUS_DIM : 0) - focusDim) * 0.12
+
+	const dpr = window.devicePixelRatio
+	const grainTick = Math.floor(performance.now() * 0.012)
+
+	renderer.render({
+		navMatrix: zui.inverseMatrix.value,
+		focusCell: sel
+			? [
+					((sel.cell[0] % Patterns.size.width) + Patterns.size.width) %
+						Patterns.size.width,
+					((sel.cell[1] % Patterns.size.height) + Patterns.size.height) %
+						Patterns.size.height,
+				]
+			: [-1, -1],
+		focusFade: focusDim,
+		fadeMaskScale: [
+			1 / (FADE_MASK_TILE[0]! * dpr),
+			1 / (FADE_MASK_TILE[1]! * dpr),
+		],
+		fadeMaskOffset: [grainRoll(grainTick), grainRoll(grainTick + 0.618)],
+		width,
+		height,
+	})
+}
 
 // Panning cancels the follow inside useZUI; drop the bubble too
 watch(zui.followTarget, target => {
@@ -600,6 +1005,9 @@ watch(zui.followTarget, target => {
 
 zui.onTap((clientX, clientY) => {
 	if (!tileMap || !audio.hasStarted.value || !stageInteractive.value) return
+
+	// Whatever this tap does, the visitor is exploring — the hint is done
+	if (exploreTipCell.value) exploreTipLeaving.value = true
 
 	// Light dismiss: while a bubble is open, the first tap anywhere only
 	// closes it — even when it lands on another character. Selecting that
@@ -610,20 +1018,33 @@ zui.onTap((clientX, clientY) => {
 	}
 
 	const world = zui.screenToWorld(clientX, clientY)
-	const cell: [number, number] = [Math.floor(world[0]), Math.floor(world[1])]
 
-	const move = tileMap.currentPattern?.get(cell[0], cell[1])
-
-	if (!move || (move.in === Direction.None && move.out === Direction.None)) {
-		return
+	// Select the dancer whose drawn centre is nearest to the tap, not the
+	// cell the tap happens to land in — the ink often reaches far from its
+	// cell, and the visitor aims at what they can see.
+	const [tapX, tapY] = [Math.floor(world[0]), Math.floor(world[1])]
+	let best: {cell: [number, number]; centre: [number, number]; d: number} | null =
+		null
+	for (let dy = -1; dy <= 1; dy++) {
+		for (let dx = -1; dx <= 1; dx++) {
+			const candidate: [number, number] = [tapX + dx, tapY + dy]
+			const centre = dancerCenter(candidate)
+			if (!centre) continue
+			const d = Math.hypot(centre[0] - world[0], centre[1] - world[1])
+			if (!best || d < best.d) best = {cell: candidate, centre, d}
+		}
 	}
+
+	// Farther than this (in cells) reads as tapping empty paper
+	if (!best || best.d > 0.75) return
+	const {cell, centre} = best
 
 	// Pick which side the bubble opens on. A landscape screen with room to
 	// spare reads left/right off the tap; otherwise the tapped half of the
 	// screen keeps the character and the bubble takes the other half.
 	const vw = window.innerWidth
 	const vh = window.innerHeight
-	const sideSpace = vw - 2 * BUBBLE_MARGIN - 2 * charHalf.value - BUBBLE_GAP
+	const sideSpace = vw - 2 * BUBBLE_MARGIN - 2 * charHalf.value - bubbleGap.value
 	bubbleSide.value =
 		vw > vh && sideSpace >= BUBBLE_MIN_WIDTH
 			? clientX < vw / 2
@@ -633,17 +1054,15 @@ zui.onTap((clientX, clientY) => {
 				? 'bottom'
 				: 'top'
 
-	// Pin the cross axis to where the character stands right now, so the
-	// camera only travels along the axis that makes room for the bubble
-	const [charX, charY] = zui.worldToScreen([cell[0] + 0.5, cell[1] + 0.5])
-	bubbleCross.value =
-		bubbleSide.value === 'top' || bubbleSide.value === 'bottom' ? charX : charY
+	// Pin where the dancer stands right now: characterAnchor starts the
+	// camera's travel from here and moves it no farther than the bubble needs
+	bubbleCharAt.value = zui.worldToScreen(centre) as [number, number]
 
 	selection.value = {
 		cell,
 		artistIndex: tileMap.getTileInfo(cell[0], cell[1]).index,
 	}
-	zui.followTarget.value = [cell[0] + 0.5, cell[1] + 0.5]
+	zui.followTarget.value = centre
 })
 
 // The step the tracked dancer took at the last frame wrap
@@ -688,29 +1107,48 @@ function verifySelection() {
 	}
 }
 
-// Initialize Regl with fullscreen quad
-useRegl<Uniforms>(canvas, {
-	frag: TileFragmentShader,
-	async onInit(regl) {
-		// Load video textures. Sprite order follows ARTISTS so the index the
-		// tile map stores keeps addressing the same artist. Laura and Lucija
-		// may rejoin later — adding them to ARTIST_IDS pulls their sprite in
-		// too, but the shader still needs matching video8/video9 uniforms.
-		videoTextureArray = useVideoTextureArray(
-			regl,
-			ARTISTS.map(({id}) => `sprites/${id}.mp4`)
-		)
-		await videoTextureArray.load()
+// WebGL answered the feature check and then gave out anyway. Nothing will
+// ever be drawn, so stop the music, bring the title back, and hand the
+// visitor the recording.
+function startupError(error: unknown) {
+	console.error('Animondo could not start', error)
+	startupFailed.value = true
+	soundVisible.value = false
+	audio.stop()
+	titleVisible.value = true
+}
 
-		// Initialize tile map
-		tileMap = new TileMap({
-			regl,
-			...Patterns.size,
-			numberOfVideos: ARTISTS.length,
-		})
+// Bring the renderer up — in a worker where the browser allows it, on the
+// main thread where it does not (see useTileRenderer) — then the automaton.
+whenever(canvas, canvasElement => {
+	init(canvasElement).catch(startupError)
+})
 
-		// パターンジェネレーター関数（常にcを返す）
-		tileMap.setMovePattern(function* (): Generator<MovePattern, never, void> {
+onScopeDispose(() => renderer?.dispose())
+
+async function init(canvasElement: HTMLCanvasElement) {
+	renderer?.dispose()
+
+	// Sprite order follows ARTISTS so the index the tile map stores keeps
+	// addressing the same artist. Laura and Lucija may rejoin later — adding
+	// them to ARTIST_IDS pulls their sprite in too, but the shader still
+	// needs matching video8/video9 uniforms.
+	renderer = await createTileRenderer(canvasElement, {
+		frag: TileFragmentShader,
+		sources: ARTISTS.map(({id}) => `sprites/${id}.mp4`),
+		tileMapWidth: Patterns.size.width,
+		tileMapHeight: Patterns.size.height,
+		onError: startupError,
+	})
+
+	// Initialize tile map
+	tileMap = new TileMap({
+		...Patterns.size,
+		numberOfVideos: ARTISTS.length,
+	})
+
+	// パターンジェネレーター関数（常にcを返す）
+	tileMap.setMovePattern(function* (): Generator<MovePattern, never, void> {
 			// The opening is choreographed. The wait for the music's entrance
 			// is the beat grid's own: no frame ticks before the first tapped
 			// beat (~2.2s in), so the first ring lands exactly on beat one.
@@ -722,123 +1160,44 @@ useRegl<Uniforms>(canvas, {
 			// rings (2x2 .. 8x8, filling the short side at the opening zoom),
 			// turn 5 floods the rest, turn 6 reverses, turns 7-10 sweep
 			// right, down, left, up.
-			yield Patterns.empty
-			for (let i = 1; i <= 4; i++) {
-				yield Patterns.radialMask(Patterns.clockwise, i)
-			}
-			yield Patterns.clockwise
-			yield Patterns.counterClockwise
-			yield Patterns.right
-			yield Patterns.down
-			yield Patterns.left
-			yield Patterns.up
-
-			// From here the piece drifts on its own; the keyboard can borrow
-			// the floor. takePattern() is only read at a step boundary, so
-			// everything lands on the beat.
-			while (true) {
-				yield patternControl.takePattern()
-			}
-		})
-
-		// Only invite the visitor in once the sprites are decoded and the
-		// typefaces have settled, so the button never lands over a half-drawn
-		// stage. Fonts get a deadline: a Typekit outage should not leave the
-		// page with no way to start.
-		await Promise.race([
-			document.fonts?.ready ?? Promise.resolve(),
-			new Promise(resolve => setTimeout(resolve, 5000)),
-		])
-		assetsReady.value = true
-
-		// The beat clock lives in setup, not here: onInit can run again
-		// (regl re-init, HMR remount), and a clock born after an await sits
-		// outside the effect scope, so it would survive as a zombie stepping
-		// a second automaton — which scrambled the appear/vanish bridges.
-
-		return {
-			resolution(context: Regl.DefaultContext) {
-				return [context.viewportWidth, context.viewportHeight]
-			},
-			video0: regl.prop<Uniforms, 'video0'>('video0'),
-			video1: regl.prop<Uniforms, 'video1'>('video1'),
-			video2: regl.prop<Uniforms, 'video2'>('video2'),
-			video3: regl.prop<Uniforms, 'video3'>('video3'),
-			video4: regl.prop<Uniforms, 'video4'>('video4'),
-			video5: regl.prop<Uniforms, 'video5'>('video5'),
-			video6: regl.prop<Uniforms, 'video6'>('video6'),
-			video7: regl.prop<Uniforms, 'video7'>('video7'),
-			tileMap: regl.prop<Uniforms, 'tileMap'>('tileMap'),
-			tileMapSize: [tileMap.width, tileMap.height],
-			navMatrix: regl.prop<Uniforms, 'navMatrix'>('navMatrix'),
-			focusCell: regl.prop<Uniforms, 'focusCell'>('focusCell'),
-			focusFade: regl.prop<Uniforms, 'focusFade'>('focusFade'),
+		yield Patterns.empty
+		for (let i = 1; i <= 4; i++) {
+			yield Patterns.radialMask(Patterns.clockwise, i)
 		}
-	},
-	onFrame() {
-		// Nothing draws before the first beat: the standing bridge already
-		// holds turn 1's Birth tiles, and some artists' first appear frame
-		// carries visible ink — it used to peek through the title screen.
-		if (currentFrame === 0) return null
+		yield Patterns.clockwise
+		yield Patterns.counterClockwise
+		yield Patterns.right
+		yield Patterns.down
+		yield Patterns.left
+		yield Patterns.up
 
-		// Settle the camera (flick glide, follow) inside the very callback
-		// that draws, so the dancer's cell and the camera can never be a
-		// frame apart
-		zui.syncCamera()
-
-		// While a dancer is watched, the rest of the crowd recedes toward
-		// the paper — for now a plain fade toward white; a paper texture is
-		// meant to take this over eventually. Eased per rendered frame.
-		const sel = selection.value
-		focusDim += ((sel ? FOCUS_DIM : 0) - focusDim) * 0.12
-
-		const [
-			video0,
-			video1,
-			video2,
-			video3,
-			video4,
-			video5,
-			video6,
-			video7,
-		] = videoTextureArray?.textureArray.value ?? []
-
-		if (
-			!video0 ||
-			!video1 ||
-			!video2 ||
-			!video3 ||
-			!video4 ||
-			!video5 ||
-			!video6 ||
-			!video7 ||
-			!tileMap
-		)
-			return null
-
-		return {
-			video0,
-			video1,
-			video2,
-			video3,
-			video4,
-			video5,
-			video6,
-			video7,
-			tileMap: tileMap.texture,
-			navMatrix: zui.inverseMatrix.value,
-			focusCell: (sel
-				? [
-						((sel.cell[0] % Patterns.size.width) + Patterns.size.width) %
-							Patterns.size.width,
-						((sel.cell[1] % Patterns.size.height) + Patterns.size.height) %
-							Patterns.size.height,
-					]
-				: [-1, -1]) as Regl.Vec2,
-			focusFade: focusDim,
+		// From here the piece drifts on its own; the keyboard can borrow
+		// the floor. takePattern() is only read at a step boundary, so
+		// everything lands on the beat.
+		while (true) {
+			yield patternControl.takePattern()
 		}
-	},
-})
+	})
+
+	// The opening bridge (turn 1's Birth tiles) has to be on the GPU
+	// before the first tick renders it
+	renderer.setTileMapPixels(tileMap.pixels)
+
+	// Only invite the visitor in once the sprites are decoded and the
+	// typefaces have settled, so the button never lands over a half-drawn
+	// stage. Fonts get a deadline: a Typekit outage should not leave the
+	// page with no way to start.
+	await Promise.race([
+		document.fonts?.ready ?? Promise.resolve(),
+		new Promise(resolve => setTimeout(resolve, 5000)),
+	])
+	assetsReady.value = true
+
+	// The beat clock lives in setup, not here: init can run again (canvas
+	// re-mount, HMR remount), and a clock born after an await sits outside
+	// the effect scope, so it would survive as a zombie stepping a second
+	// automaton — which scrambled the appear/vanish bridges.
+}
 
 useSeoMeta({
 	title: 'Animondo',
@@ -869,6 +1228,13 @@ main
 	top 1rem
 	left 1rem
 	// Above the title overlay: muting must not start the piece
+	z-index 110
+
+.launchpad-button
+	position fixed
+	bottom 1rem
+	left 1rem
+	// Above the launchpad overlay, so the same button closes what it opened
 	z-index 110
 
 
@@ -904,8 +1270,8 @@ main
 	// samples it 4:1 — see scripts/build-bubble-samples.py for the contract.
 	border 16px solid transparent
 	border-image url('/animondo/bubble/frame_0.webp') 128 fill round
-	// Boil at 12 fps, same clock as the hand-drawn icons
-	animation bubble-boil 0.25s steps(1) infinite
+	// Boil at 12 fps, same clock as the hand-drawn icons (4 frames)
+	animation bubble-boil 0.3333s steps(1) infinite
 	text-align center
 	line-height 1.5
 
@@ -917,7 +1283,7 @@ main
 		width 36px
 		height 36px
 		background url('/animondo/bubble/tail_0.webp') center / contain no-repeat
-		animation bubble-tail-boil 0.25s steps(1) infinite
+		animation bubble-tail-boil 0.3333s steps(1) infinite
 
 	// Bubble above the character — tail below, pointing down. The 34px
 	// offset (from the padding box) leaves the tail's root just touching
@@ -958,39 +1324,103 @@ main
 	&--sizing > *
 		visibility hidden
 
+	// Top row: the language switch sitting just left of the drawn ×
+	&__controls
+		display flex
+		align-items center
+		justify-content flex-end
+		gap 0.5rem
+
+	// Scaled by font-size alone — the words are 4em x 2em (LocaleSwitch)
+	&__lang
+		font-size 0.6rem
+
+	// The drawn × (80px source shown at ~28px, boiling like the frame)
 	&__close
-		position absolute
-		top 0.25rem
-		right 0.5rem
-		padding 0 0.25rem
-		font-size 1.25rem
-		line-height 1.4
+		flex none
+		width 1.75rem
+		height 1.75rem
+		padding 0
+		border none
+		background url('/animondo/bubble/close_0.webp') center / 1.25rem no-repeat
+		animation bubble-close-boil 0.3333s steps(1) infinite
 		cursor pointer
 
 		&:hover
 			opacity 0.6
 
-	&__name
-		display inline-block
-		align-self center
-		font-size 1.25rem
-		cursor pointer
-
-		&:hover
-			text-decoration underline
-
-	&__text
-		margin-top 0.25rem
-		font-size 0.85rem
-		color gray
-		text-align left
-		// The bubble itself is capped (maxHeight from bubbleStyle); the prose
-		// is the one flex child allowed to shrink, so long press-kit bios
-		// scroll while the name and the close button stay put.
+	// Everything below the control row — names, still and prose — scrolls as
+	// one column, so no content height can push past the drawn frame. The
+	// min-height is what actually lets the maxHeight'd flex column shrink it.
+	&__body
 		flex 0 1 auto
 		min-height 0
 		overflow-y auto
 		overscroll-behavior contain
+
+	// Names on the left, the site link on the right
+	&__header
+		display flex
+		align-items baseline
+		justify-content space-between
+		gap 0.75rem
+		text-align left
+
+	// The current language's name, with the other language's under it
+	&__names
+		display flex
+		flex-direction column
+		align-items flex-start
+
+	&__name
+		font-size 1.25rem
+
+	&__name-alt
+		font-size 0.8rem
+
+	// The drawn "Web" link (300x97 source), dropped to the bottom edge of
+	// the name block — up at the first line it crowds the drawn ×
+	&__site
+		flex none
+		align-self flex-end
+		height 1.2rem
+		aspect-ratio 300 / 97
+		background url('/animondo/bubble/web_0.webp') center / contain no-repeat
+		animation bubble-web-boil 0.3333s steps(1) infinite
+
+		&:hover
+			opacity 0.6
+
+	// Representative work: a still with its title and year underneath. The
+	// fixed aspect ratio keeps the bubble's measured height stable before
+	// the image has arrived.
+	&__work
+		margin-top 1rem
+		text-align left
+
+		img
+			display block
+			width 100%
+			aspect-ratio 16 / 9
+			object-fit cover
+			// Hand-drawn vignette, boiling like the frame. The masters are a
+			// luminance mask; the build turns their luma into alpha so no
+			// mask-mode is needed (Chrome only learned it in 120)
+			mask url('/animondo/bubble/thumb-mask_0.webp') center / 100% 100% no-repeat
+			animation bubble-thumb-boil 0.3333s steps(1) infinite
+
+		// Quieter than the prose: smaller and paler, so the caption reads as
+		// a label on the still rather than part of the bio
+		figcaption
+			margin-top 0.25rem
+			font-size 0.7rem
+			color #a8a8a8
+
+	&__text
+		margin-top 0.75rem
+		font-size 0.85rem
+		color #3f3f3f
+		text-align left
 
 		// Rendered markdown lands here, and the global reset has stripped the
 		// browser defaults these tags rely on — restore them locally.
@@ -1015,20 +1445,65 @@ main
 			&:hover
 				opacity 0.6
 
+// Kept in the DOM but never seen. display:none would stop the browser (and
+// Typekit's subsetter) from caring about the glyphs — invisible and
+// sizeless does not.
+.font-warmup
+	position fixed
+	width 0
+	height 0
+	overflow hidden
+	visibility hidden
+	pointer-events none
+
 @keyframes bubble-boil
 	0%
 		border-image-source url('/animondo/bubble/frame_0.webp')
-	33.3%
+	25%
 		border-image-source url('/animondo/bubble/frame_1.webp')
-	66.7%
+	50%
 		border-image-source url('/animondo/bubble/frame_2.webp')
+	75%
+		border-image-source url('/animondo/bubble/frame_3.webp')
 
 @keyframes bubble-tail-boil
 	0%
 		background-image url('/animondo/bubble/tail_0.webp')
-	33.3%
+	25%
 		background-image url('/animondo/bubble/tail_1.webp')
-	66.7%
+	50%
 		background-image url('/animondo/bubble/tail_2.webp')
+	75%
+		background-image url('/animondo/bubble/tail_3.webp')
+
+@keyframes bubble-close-boil
+	0%
+		background-image url('/animondo/bubble/close_0.webp')
+	25%
+		background-image url('/animondo/bubble/close_1.webp')
+	50%
+		background-image url('/animondo/bubble/close_2.webp')
+	75%
+		background-image url('/animondo/bubble/close_3.webp')
+
+@keyframes bubble-web-boil
+	0%
+		background-image url('/animondo/bubble/web_0.webp')
+	25%
+		background-image url('/animondo/bubble/web_1.webp')
+	50%
+		background-image url('/animondo/bubble/web_2.webp')
+	75%
+		background-image url('/animondo/bubble/web_3.webp')
+
+@keyframes bubble-thumb-boil
+	0%
+		mask-image url('/animondo/bubble/thumb-mask_0.webp')
+	25%
+		mask-image url('/animondo/bubble/thumb-mask_1.webp')
+	50%
+		mask-image url('/animondo/bubble/thumb-mask_2.webp')
+	75%
+		mask-image url('/animondo/bubble/thumb-mask_3.webp')
 
 </style>

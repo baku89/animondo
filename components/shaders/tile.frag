@@ -16,6 +16,24 @@ uniform sampler2D video7;
 
 uniform mat3 navMatrix;
 
+// Wrapped cell coords of the watched dancer ((-1,-1) when nobody is), and
+// how far everyone else has receded toward the paper (0..1)
+uniform vec2 focusCell;
+uniform float focusFade;
+
+// The crayon veil the unfocused crowd fades behind: a tiling white texture
+// whose alpha carries the grain (flecks are holes). Sampled in screen space —
+// scale maps gl_FragCoord to mask UV, offset is re-rolled at 12 fps on the
+// main thread so the veil boils like the ink does. A 1x1 opaque white
+// placeholder stands in until the image arrives, which is the old flat fade.
+uniform sampler2D fadeMask;
+uniform vec2 fadeMaskScale;
+uniform vec2 fadeMaskOffset;
+
+// focusFade x the veil's alpha at this fragment, set once in main() — the
+// five overlap samples of a fragment must recede by the same amount
+float fadeVeil;
+
 #define TILE_NONE  0
 #define TILE_BIRTH 1
 #define TILE_UP    2
@@ -110,25 +128,35 @@ vec4 drawTileAt(vec2 tileCoord, vec2 uv) {
         return vec4(1.0);
     }
     
-    // TODO: Use videoIndex to select from video array
-    // For now, use the single video texture
-   if (videoIndex == 0) {
-        return tile(uv, video0, tileIndex, rotation, flipVertical);
-   } else if (videoIndex == 1) {
-        return tile(uv, video1, tileIndex, rotation, flipVertical);
-   } else if (videoIndex == 2) {
-        return tile(uv, video2, tileIndex, rotation, flipVertical);
-   } else if (videoIndex == 3) {
-        return tile(uv, video3, tileIndex, rotation, flipVertical);
-   } else if (videoIndex == 4) {
-        return tile(uv, video4, tileIndex, rotation, flipVertical);
-   } else if (videoIndex == 5) {
-        return tile(uv, video5, tileIndex, rotation, flipVertical);
-   } else if (videoIndex == 6) {
-        return tile(uv, video6, tileIndex, rotation, flipVertical);
-   } else if (videoIndex == 7) {
-        return tile(uv, video7, tileIndex, rotation, flipVertical);
-   }
+    vec4 color = vec4(1.0);
+    if (videoIndex == 0) {
+        color = tile(uv, video0, tileIndex, rotation, flipVertical);
+    } else if (videoIndex == 1) {
+        color = tile(uv, video1, tileIndex, rotation, flipVertical);
+    } else if (videoIndex == 2) {
+        color = tile(uv, video2, tileIndex, rotation, flipVertical);
+    } else if (videoIndex == 3) {
+        color = tile(uv, video3, tileIndex, rotation, flipVertical);
+    } else if (videoIndex == 4) {
+        color = tile(uv, video4, tileIndex, rotation, flipVertical);
+    } else if (videoIndex == 5) {
+        color = tile(uv, video5, tileIndex, rotation, flipVertical);
+    } else if (videoIndex == 6) {
+        color = tile(uv, video6, tileIndex, rotation, flipVertical);
+    } else if (videoIndex == 7) {
+        color = tile(uv, video7, tileIndex, rotation, flipVertical);
+    }
+
+    // While a dancer is being watched, every other tile recedes toward the
+    // paper — behind the crayon veil, whose grain lets flecks of ink keep
+    // glinting through. Applied per sampled tile (the overlap bleed
+    // included), so the watched cell's ink is the only one left at full
+    // strength.
+    if (fadeVeil > 0.0 && distance(mod(tileCoord, tileMapSize), focusCell) > 0.5) {
+        color = mix(color, vec4(1.0), fadeVeil);
+    }
+
+    return color;
 }
 
 // Draw overlapping tiles (current + 4 neighbors) and multiply them
@@ -167,6 +195,10 @@ void main() {
     
     // Apply navigation transformation
     vec2 coord = (navMatrix * vec3(normCoord, 1.0)).xy;
+
+    // The veil's strength at this fragment, shared by the overlap samples
+    fadeVeil = focusFade
+        * texture2D(fadeMask, gl_FragCoord.xy * fadeMaskScale + fadeMaskOffset).a;
 
     // Draw overlapping tiles
     gl_FragColor = drawOverlappingTiles(coord);

@@ -21,8 +21,13 @@ export function useVideoTexture(regl: Regl.Regl, videoSrc: string) {
 			videoElement.load()
 		})
 
-		// Create texture
-		texture.value = regl.texture(videoElement)
+		// Create texture. Linear, not regl's nearest default — see the
+		// worker's sprite textures
+		texture.value = regl.texture({
+			data: videoElement,
+			mag: 'linear',
+			min: 'linear',
+		})
 	}
 
 	// Seek without uploading, so the caller can land every video first and

@@ -38,7 +38,7 @@ EU–日本 アニメーション・レジデンシー（大阪万博 2025）の
 
 - Nuxt 4（SSR 無効, SPA モード）
 - Vue 3 + TypeScript
-- WebGL: regl（`composables/useRegl.ts`）
+- WebGL: regl（Worker 内の `workers/tileRenderer.worker.ts`、フォールバックは `composables/useTileRenderer.ts` のメインスレッド版）
 - 数学: linearly（vec2 / mat2d / mat3 / scalar）
 - ユーティリティ: lodash-es, @vueuse/core, @vueuse/integrations
 - スタイル: Stylus
@@ -66,14 +66,17 @@ yarn build       # nuxt build（通常は generate で十分）
 │   ├── default.vert             # 全画面クアッド頂点シェーダ
 │   └── tile.frag                # ★ メインのフラグメントシェーダ
 ├── composables/
-│   ├── useRegl.ts               # regl の初期化・RAFループ・リサイズ
+│   ├── useTileRenderer.ts       # ★ レンダラーの共通インターフェース（Worker 版とメインスレッド版の選択・後述）
 │   ├── useVideoTexture.ts       # 1 本の <video> をテクスチャ化、setFrame(n) でシーク
-│   ├── useVideoTextureArray.ts  # 上の N 本まとめ版
+│   ├── useVideoTextureArray.ts  # 上の N 本まとめ版（メインスレッド・フォールバック用）
 │   ├── useKawachiAudio.ts       # BGM のギャップレスループ再生（Web Audio）
 │   └── useZUI.ts                # ピンチ/ドラッグ/ホイールズーム（index.vue 専用）
+├── workers/
+│   └── tileRenderer.worker.ts   # ★ 描画・デコード・アップロードの本命経路（OffscreenCanvas + regl）
 ├── utils/
 │   ├── tile.ts                  # ★ Tile / Direction enum、TILE_DISPLAY_TABLE、エンコード
-│   ├── TileMap.ts               # ★ オートマトン本体（状態保持＋シェーダ用テクスチャ更新）
+│   ├── TileMap.ts               # ★ オートマトン本体（純ロジック。pixels をレンダラーに渡す）
+│   ├── spriteDecoder.ts         # WebCodecs パイプライン（demux→VideoDecoder、Worker/メイン共用）
 │   ├── patterns.ts              # ★ パターン辞書（clockwise / gather / scatter ほか）
 │   ├── Array2D.ts               # トロイダル 2D 配列ユーティリティ
 │   ├── artists.ts               # ★ 作家データのローダ（content/ の md をパース）
@@ -121,7 +124,9 @@ yarn build       # nuxt build（通常は generate で十分）
 
 シェーダ側では `Tile` enum の値 - 1 を 3 で割って (col, row) を得て、UV を中心 50%（`mix(vec2(0.25), vec2(0.75), uv)`）に絞って読み出す（隣接セルと 0.5 オーバーラップさせる前提）。
 
-### CPU→GPU のステート受け渡し（`TileMap.texture`）
+### CPU→GPU のステート受け渡し（`TileMap.pixels`）
+
+`TileMap` は純ロジックで、タイル状態を RGB ピクセルバッファ（`pixels`）に書き出すだけ。GPU への転送はレンダラー（後述の Worker またはメインスレッド版）が行う。
 
 - サイズ: `Patterns.size.width × Patterns.size.height` = **16×16**（`utils/patterns.ts` 末尾の `size` 定数で変更可）
 - フォーマット: RGB / uint8 / nearest / repeat
@@ -142,6 +147,20 @@ yarn build       # nuxt build（通常は generate で十分）
 
 `index.vue`: `useZUI` がピンチ/ドラッグ/ホイールでカメラ行列を作り、`navMatrix` として送る。シェーダ側はトロイダル（`Array2D.get` がモジュロ）なので、ZUI でどこまでパンしても画面が埋まり続ける。
 
+### レンダラーは Worker（`useTileRenderer` / `tileRenderer.worker.ts`）
+
+Safari は `texSubImage2D(VideoFrame)` の YUV→RGB 変換を CPU でやる（実測 ~6ms/本）。拍フレームごとに 8 本一括アップロードしていた頃は、メインスレッドが ~45ms × 9 回/秒 止まり、ボタンやバブルまで巻き込んでカクついていた。そこで**デコード・アップロード・regl 描画を丸ごと Worker + OffscreenCanvas に移設**した。
+
+- `createTileRenderer(canvas, …)` が Worker 版を試し、無理ならメインスレッド版（従来コードの `useVideoTextureArray` + regl）へフォールバック。両者は同じ契約を話す:
+    - `present(frame, pixels?)`: スプライトのコマを表示。オートマトンが進んだ拍では新しいタイルマップも**同じスワップで**適用（旧ターンが一瞬も見えないためのアトミシティ）
+    - `prepare(frame)`: 次のコマへ向けたデコード開始
+    - `setTileMapPixels(px)`: キャッチアップ時（スプライトを触らずパターンだけ進める）
+    - `render(props)`: 毎 rAF、カメラ行列・focus・キャンバスサイズを渡して描画
+- Worker 内は**ダブルバッファ**: `prepare()` が 8 フレーム分の空き時間に裏テクスチャへ 1 本ずつアップロード（アップロード間に macrotask を挟み、'frame' の描画を通す）。`present()` は表裏スワップ + タイルマップ適用だけなので、拍頭にバーストが発生しない
+- プロトコルは 2 段階: `load`（何もコミットしない。VideoDecoder / Worker 内 WebGL / H.264 対応をここで判定し、ダメなら 'unsupported' → メインスレッド版へ）→ `loaded` を見てから `transferControlToOffscreen()` して `start`。canvas を渡した後の失敗（シェーダ拒否など）は 'error' = 致命扱いで `index.vue` の `startupError` へ
+- 拍クロック・オートマトン（`TileMap`）・ZUI・選択ロジックはメインスレッドに残る。`tileMap.pixels` は postMessage の structured clone がコピーしてくれるので転送安全
+- `decodeFrame`（生のデコード処理）と `ensureDecoded`（チェーン管理）は `utils/spriteDecoder.ts` で共用。**チェーンのリンク内から `ensureDecoded` を呼んではいけない**（自分自身を待ってデッドロックする — Worker 側は自前チェーンに `decodeFrame` を繋いでいる）
+
 ---
 
 ## エントリポイント
@@ -153,6 +172,14 @@ yarn build       # nuxt build（通常は generate で十分）
 - パターンシーケンスはここで完結している（`tileMap.setMovePattern(function*() { ... })`）
 
 > 過去にあった `pages/export.vue`（PNG 連番書き出し用ビュー）は現在 `video-export` ブランチに退避してある。再開したい場合はそちらを参照。
+
+### `app.vue` — 対応ブラウザの門番
+
+`utils/support.ts` の `isSupported()` が false なら `<NuxtPage>` を**マウントせず**、`TitleSequence` を `unsupported` で出す（タイトルの下が Play ボタンではなく YouTube へのリンクになる）。`pages/index.vue` は setup の時点で `AudioContext` を開き WebGL を要求するので、判定は必ずページの外側で行う。
+
+判定しているのは「無ければ例外で落ちる」ものだけ：WebGL / `AudioContext` / `Promise.withResolvers`（実質 Chrome 119・Safari 17.4・Firefox 121 が下限）。WebCodecs は `useVideoTextureArray` が `<video>` にフォールバックするので**含めない**。
+
+機能判定を通り抜けたあとの失敗（シェーダのコンパイル拒否、canvas 移譲後の Worker クラッシュなど）は `index.vue` の `startupError` が拾い、音を止めてタイトル画面を同じ YouTube 表示で戻す。動画の URL は `TitleSequence.vue` の `YOUTUBE_URL` 定数。
 
 ---
 
@@ -171,7 +198,8 @@ url: https://noemiemarsily.tumblr.com/
 『Ce qui bouge est vivant』を発表。
 ```
 
-- frontmatter は `key: value` の 1 行 1 項目のみ（`name` と `url` が必須）。YAML パーサは使っていないので、ネストや複数行値は非対応
+- frontmatter は `key: value` の 1 行 1 項目のみ（`name` / `url` / `workTitle` / `workYear` が必須）。YAML パーサは使っていないので、ネストや複数行値は非対応
+- `workTitle` / `workYear` は代表作（バブル内に画像＋キャプションで表示）。スチルは `public/works/{id}.webp` に置く（出典: HIROSHIMA の上映プログラムページ、16:9 前提・幅 720px の WebP）
 - `source:` はプロフィール文の出典 URL（記録用。パーサは既知のキー以外を無視するのでアプリからは参照されない）。複数ある場合は**半角スペース区切り**で 1 行に並べる — URL に空白は含まれないので曖昧にならない
 - 本文は **HIROSHIMA ANIMATION SEASON 2026 のレジデンシー掲載ページに作家本人が提出したプレスキットの文面をそのまま**使っている（`source:` 参照）。要約・書き換えはしない方針。麦のみ自分で編集
 - そのため**段落は折り返さず 1 行に書く**。折り返すと `unwrapSoftBreaks` の連結時に「15 歳」「第 68 回」のような和欧間スペースが失われ、逐語でなくなる
@@ -278,7 +306,7 @@ nextStep() ごとに:
 
 - **fps**: ソース 12 fps を想定（`useVideoTexture.setFrame(n, fps=12)` で `currentTime = n/12` にシーク）
 - **同期**: `setFrame` は `requestAnimationFrame` で `currentTime` の収束を待ってから `texture.subimage()` を叩く。シークの待ちが詰まるとガクつく
-- **配信パス**: `useVideoTexture` の `videoElement.src = '/animondo/' + videoSrc` で baseURL を直書きしている。dev サーバ（baseURL なし）でも本番（baseURL=`/animondo/`）でも同じ URL を使うために固定。**baseURL を変える場合はここも要修正**
+- **配信パス**: `'/animondo/' + videoSrc` と baseURL を直書きしている（`useVideoTexture`・`tileRenderer.worker.ts`・`useVideoTextureArray` の 3 箇所）。dev サーバ（baseURL なし）でも本番（baseURL=`/animondo/`）でも同じ URL を使うために固定。**baseURL を変える場合はここも要修正**
 
 ---
 
@@ -298,7 +326,8 @@ nextStep() ごとに:
 
 ユーザーが目指す方向は **Web サイト = インタラクティブなアニメーション作品** への昇華。検討対象の例：
 
-- [x] ~~ビデオ 8 本を並列 seek している部分のパフォーマンス改善~~ → WebCodecs 化で解決。`useVideoTextureArray` は `utils/mp4Demux.ts`（自前の最小 MP4 パーサ）でサンプルを取り出し、`VideoDecoder` に 1 コマずつ食わせて `flush()` で確定受領する。スプライトは all-intra H.264 なので任意コマを単独デコード可能。`<video>` + seek は `VideoDecoder` 非対応ブラウザ用のフォールバックとして `useVideoTexture` に残存
+- [x] ~~ビデオ 8 本を並列 seek している部分のパフォーマンス改善~~ → WebCodecs 化で解決。`utils/spriteDecoder.ts` が `utils/mp4Demux.ts`（自前の最小 MP4 パーサ）でサンプルを取り出し、`VideoDecoder` に 1 コマずつ食わせて `flush()` で確定受領する。スプライトは all-intra H.264 なので任意コマを単独デコード可能。`<video>` + seek は `VideoDecoder` 非対応ブラウザ用のフォールバックとして `useVideoTexture` に残存
+- [x] ~~Safari で拍ごとにメインスレッドが止まる（`texSubImage2D(VideoFrame)` が CPU 変換 ~6ms/本 × 8 本バースト）~~ → レンダラーの Worker 移設＋ダブルバッファで解決（「レンダラーは Worker」の節を参照）。実測: Safari のメインスレッドストール（>30ms）が 6 秒間 88 回 → 0 回
 - [x] ~~スプライトのフォーマット（mp4 → WebP アニメ or 静止画スプライトシート）の検討~~ → mp4 続投で決着。シート全展開は GPU 384MB（8 作家 × 8 コマ × 1536×1024 RGBA）で不可。mp4 + WebCodecs なら GPU は現在コマのみ（48MB）でコマ精度も完全
 - [ ] UI: 「Tap To Start」だけの一発キックではなく、テンポ・パターン・参加作家を選べるインタラクション
 - [ ] モバイルでのタッチ（pinch zoom）操作の使い心地
