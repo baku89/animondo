@@ -24,3 +24,7 @@ logs
 .env
 .env.*
 !.env.example
+
+# Local source material (the encoded deliverables live in public/)
+videos/edmunds_new.mov
+videos/kawachiondo_loop.wav
