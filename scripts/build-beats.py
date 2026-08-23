@@ -1,0 +1,143 @@
+#!/usr/bin/env python3
+"""Turn hand-tapped AE markers into the beat grid the piece will follow.
+
+Input is the JSON written by scripts/export-beat-markers.jsx. The taps carry
+two kinds of error and one kind of signal, and the tooling has a knob for
+each:
+
+  jitter    random tap error, beat to beat. Removed by --smooth N: each beat
+            is re-estimated by least squares over a sliding window of N beats
+            (odd; 1 disables). A local LINE is fitted, so slow tempo drift —
+            the music's actual sway — passes through untouched while the
+            per-tap noise averages out.
+  swing     if the taps deliberately alternate long/short, a plain line would
+            iron that out too. --swing adds an alternating basis to the fit,
+            so the even/odd offset survives smoothing.
+  latency   tapping runs systematically late. --offset SECONDS shifts the
+            whole grid (negative = earlier), applied last.
+
+Suspicious intervals (missed or doubled taps) are reported against the local
+median, not auto-fixed: the source of truth is the AE comp, so fix it there
+and re-export.
+
+Usage:
+  scripts/build-beats.py markers.json [--smooth 9] [--swing]
+      [--offset -0.06] [--out utils/beats.ts]
+"""
+import argparse
+import io
+import json
+import statistics
+import sys
+
+
+def solve(matrix, rhs):
+    """Gaussian elimination, sized for the 2x2/3x3 systems the fit needs."""
+    n = len(rhs)
+    a = [row[:] + [rhs[i]] for i, row in enumerate(matrix)]
+    for col in range(n):
+        pivot = max(range(col, n), key=lambda r: abs(a[r][col]))
+        a[col], a[pivot] = a[pivot], a[col]
+        if abs(a[col][col]) < 1e-12:
+            raise ValueError('degenerate fit window')
+        for row in range(n):
+            if row == col:
+                continue
+            f = a[row][col] / a[col][col]
+            for k in range(col, n + 1):
+                a[row][k] -= f * a[col][k]
+    return [a[i][n] / a[i][i] for i in range(n)]
+
+
+def smooth(times, window, swing):
+    if window <= 1:
+        return times[:]
+    half = window // 2
+    out = []
+    for i in range(len(times)):
+        lo = max(0, i - half)
+        hi = min(len(times), i + half + 1)
+        idx = list(range(lo, hi))
+        # basis: 1, j, and optionally (-1)^j for the long/short alternation
+        cols = [[1.0] * len(idx), [float(j) for j in idx]]
+        if swing:
+            cols.append([1.0 if j % 2 == 0 else -1.0 for j in idx])
+        n = len(cols)
+        mat = [[sum(cols[r][k] * cols[c][k] for k in range(len(idx)))
+                for c in range(n)] for r in range(n)]
+        rhs = [sum(cols[r][k] * times[idx[k]] for k in range(len(idx)))
+               for r in range(n)]
+        coef = solve(mat, rhs)
+        value = coef[0] + coef[1] * i
+        if swing:
+            value += coef[2] * (1.0 if i % 2 == 0 else -1.0)
+        out.append(value)
+    return out
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('markers')
+    ap.add_argument('--smooth', type=int, default=9,
+                    help='window in beats, odd; 1 disables (default 9)')
+    ap.add_argument('--swing', action='store_true',
+                    help='preserve deliberate long/short alternation')
+    ap.add_argument('--offset', type=float, default=0.0,
+                    help='seconds added to every beat, negative = earlier')
+    ap.add_argument('--out', default='utils/beats.ts')
+    args = ap.parse_args()
+
+    if args.smooth % 2 == 0:
+        sys.exit('--smooth must be odd')
+
+    doc = json.load(io.open(args.markers, encoding='utf-8'))
+    raw = sorted(doc['times'])
+    if len(raw) < 4:
+        sys.exit(f'only {len(raw)} markers — not enough for a grid')
+
+    gaps = [b - a for a, b in zip(raw, raw[1:])]
+    median = statistics.median(gaps)
+    for i, g in enumerate(gaps):
+        if g < 0.5 * median:
+            print(f'!! beats {i}-{i + 1}: {g:.3f}s — double tap? '
+                  f'(local median {median:.3f}s)')
+        elif g > 1.5 * median:
+            print(f'!! beats {i}-{i + 1}: {g:.3f}s — missed tap?')
+
+    smoothed = smooth(raw, args.smooth, args.swing)
+    final = [t + args.offset for t in smoothed]
+
+    def spread(ts):
+        ds = [b - a for a, b in zip(ts, ts[1:])]
+        return statistics.pstdev(ds) * 1000
+
+    print(f'{len(raw)} beats over {raw[-1] - raw[0]:.2f}s, '
+          f'median interval {median * 1000:.1f}ms '
+          f'({60 / median:.1f} BPM)')
+    print(f'interval spread: raw {spread(raw):.1f}ms -> '
+          f'smoothed {spread(smoothed):.1f}ms'
+          + (' (swing preserved)' if args.swing else ''))
+    residual = max(abs(a - b) for a, b in zip(raw, smoothed))
+    print(f'largest correction to any tap: {residual * 1000:.1f}ms')
+
+    NL = chr(10)
+    body = (',' + NL + '\t').join(f'{t:.4f}' for t in final)
+    io.open(args.out, 'w', encoding='utf-8').write(
+        f"""/**
+ * The beat grid for kawachiondo.mp3, in seconds of audio time.
+ *
+ * Generated by scripts/build-beats.py from hand-tapped After Effects
+ * markers ({doc.get('source', '?')} in {doc.get('comp', '?')}) — do not
+ * edit by hand; fix the markers in the comp and re-export.
+ *
+ * smooth={args.smooth} swing={str(args.swing).lower()} offset={args.offset}s
+ */
+export const BEAT_TIMES: number[] = [
+\t{body},
+]
+""")
+    print(f'wrote {args.out}')
+
+
+if __name__ == '__main__':
+    main()
