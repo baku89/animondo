@@ -17,10 +17,13 @@ export function useVideoTextureArray(regl: Regl.Regl, videoSources: string[]) {
 	}
 
 	const setFrame = async (frameNumber: number, fps: number = 12) => {
-		// Wait for all video textures to update in parallel
+		// Land every video on the frame first, then push all eight textures
+		// together — per-video uploads staggered by seek latency, which
+		// showed as a flash of the last frame at the top of each loop.
 		await Promise.all(
-			videoTextures.map(videoTexture => videoTexture.setFrame(frameNumber, fps))
+			videoTextures.map(videoTexture => videoTexture.seekFrame(frameNumber, fps))
 		)
+		videoTextures.forEach(videoTexture => videoTexture.upload())
 	}
 
 	return {

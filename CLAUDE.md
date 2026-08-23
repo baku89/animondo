@@ -11,7 +11,7 @@ EU–日本 アニメーション・レジデンシー（大阪万博 2025）の
 - 公開タイトル: **Animondo**
 - 公開先: <https://x.baku89.com/animondo>（baseURL: `/animondo/`）
 - リポジトリ: `baku89/animondo`（private）
-- BGM: `public/kawachiondo.mp3`（河内音頭）— 8.8 fps のステップとほぼ同期させている
+- BGM: `public/kawachiondo_loop.opus`（河内音頭、m4a フォールバック付き）— 8.8 fps のステップとほぼ同期。Web Audio でギャップレスループ（`useKawachiAudio.ts` 参照）
 - 参加作家（現状 active）: noemie / baku / sumito / masa / edmunds / honami / shinobu / sander の 8 名
 - laura / lucija は将来再参加する可能性あり（`pages/index.vue` にコメントアウト済みの placeholder あり）
 
@@ -69,7 +69,7 @@ yarn build       # nuxt build（通常は generate で十分）
 │   ├── useRegl.ts               # regl の初期化・RAFループ・リサイズ
 │   ├── useVideoTexture.ts       # 1 本の <video> をテクスチャ化、setFrame(n) でシーク
 │   ├── useVideoTextureArray.ts  # 上の N 本まとめ版
-│   ├── useKawachiAudio.ts       # kawachiondo.mp3 の再生開始ゲート
+│   ├── useKawachiAudio.ts       # BGM のギャップレスループ再生（Web Audio）
 │   └── useZUI.ts                # ピンチ/ドラッグ/ホイールズーム（index.vue 専用）
 ├── utils/
 │   ├── tile.ts                  # ★ Tile / Direction enum、TILE_DISPLAY_TABLE、エンコード
@@ -88,7 +88,7 @@ yarn build       # nuxt build（通常は generate で十分）
 │   ├── build-title-sprite.sh    # .mov → public/title-sprite.webp
 │   └── title-sprite-bbox.py     # 上のスクリプトが使う crop 値を算出
 ├── public/
-│   ├── kawachiondo.mp3          # BGM
+│   ├── kawachiondo_loop.opus    # BGM（本命。Safari<18.4 用に .m4a も併置）
 │   ├── title-sprite.webp        # ★ タイトル 7×7 スプライト（838×214/コマ）
 │   └── sprites/{artist}.mp4     # ★ 各作家の素材（8 本、3×2 グリッド × 8 frames）
 ├── assets/style.styl            # グローバル CSS
@@ -317,4 +317,4 @@ nextStep() ごとに:
 - Stylus は CSS の `min()` / `max()` を**自前の関数として評価してしまう**。`min(var(--a), 86vw)` は `var()` と長さを比較できず、エラーも出さずに片方を選ぶ（実際 `--title-width` が `86vw` に化けた）。`unquote('min(var(--a), 86vw)')` で囲むか、`calc()` を挟んで素通しさせること
 - `dist/` は `.output/public` へのシンボリックリンクなので消さない
 - `public/sprites/*.mp4` を差し替えるときは After Effects プロジェクト（`../osaka_expo_collaborative/osaka-expo-anim-residency-collab.aep`）から書き出すワークフローに従う。**3×2 グリッド・8 frames/cell** の規約を絶対に崩さない（崩すならシェーダ側 `tile.frag` の `vec2(3.0, 2.0)` と offset 計算を併せて変える）
-- ステップ周波数を変えたい場合は `pages/*.vue` 側の `useIntervalFn(..., 1000 / 8.8)` と `currentFrame % 8` の 2 か所をセットで触る
+- ステップのテンポは固定周波数ではなく**拍グリッド**（`utils/beats.ts`）駆動。AE で手打ちしたマーカー → `scripts/export-beat-markers.jsx` で JSON 書き出し → `scripts/build-beats.py`（平滑化 `--smooth`・スイング保存 `--swing`・全体オフセット `--offset`、**初拍は常にアンカー**）で生成する。実行時は `useKawachiAudio` の `elapsed()`（AudioContext の時計、単調増加）だけを時計として、ターン t = `BEAT_TIMES[t]`..`[t+1]` に 8 コマを等分配置。初回パス 0..duration と、以降のループ区間 `[loopStart, duration)` の 2 本のタイムラインを持つ（マーカーはループ跨ぎ分まで打たれている前提）

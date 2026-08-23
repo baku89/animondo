@@ -66,7 +66,7 @@
 </template>
 
 <script setup lang="ts">
-import {useIntervalFn, useTimeoutFn, useWindowSize} from '@vueuse/core'
+import {useRafFn, useTimeoutFn, useWindowSize} from '@vueuse/core'
 import type Regl from 'regl'
 
 import TileFragmentShader from '~/components/shaders/tile.frag?raw'
@@ -77,6 +77,7 @@ import {ABOUT_SHEET, SOUND_SHEET} from '~/composables/useSpritePlayer'
 import {useVideoTextureArray} from '~/composables/useVideoTextureArray'
 import {useZUI} from '~/composables/useZUI'
 import {ARTISTS} from '~/utils/artists'
+import {BEAT_TIMES} from '~/utils/beats'
 import type {MovePattern} from '~/utils/patterns'
 import * as Patterns from '~/utils/patterns'
 import {Direction, moveToTileDisplay} from '~/utils/tile'
@@ -500,17 +501,15 @@ useRegl<Uniforms>(canvas, {
 
 		// パターンジェネレーター関数（常にcを返す）
 		tileMap.setMovePattern(function* (): Generator<MovePattern, never, void> {
-			// The opening is choreographed, and it opens with silence: four
-			// still turns so the first dancers land on the music the way the
-			// piece always has. Births in turn k come from yield k+1's out, so
-			// the fourth silent yield is what times the first ring: turns 4-7
-			// grow four rings (2x2 .. 8x8, filling the short side at the
-			// opening zoom), turn 8 floods the rest, turn 9 reverses, turns
-			// 10-13 sweep right, down, left, up.
-			yield Patterns.empty
-			yield Patterns.empty
-			yield Patterns.empty
-			yield Patterns.empty
+			// The opening is choreographed. The wait for the music's entrance
+			// is no longer scripted here: the beat grid starts at the first
+			// tapped beat (~2.2s in), so no frame ticks before it and the
+			// first ring lands exactly on beat one. Births in turn k come from
+			// yield k+1's out, hence the doubled first mask: turns 1-4 grow
+			// four rings (2x2 .. 8x8, filling the short side at the opening
+			// zoom), turn 5 floods the rest, turn 6 reverses, turns 7-10
+			// sweep right, down, left, up.
+			yield Patterns.radialMask(Patterns.clockwise, 1)
 			for (let i = 1; i <= 4; i++) {
 				yield Patterns.radialMask(Patterns.clockwise, i)
 			}
@@ -542,32 +541,111 @@ useRegl<Uniforms>(canvas, {
 		// Wait for audio to start
 		await audio.waitForPlay()
 
-		// Start the timer
-		useIntervalFn(() => {
+		// --- The beat clock ---
+		// The music sways, so the step clock follows Baku's hand-tapped beat
+		// grid instead of a flat interval: turn t spans BEAT_TIMES[t] to
+		// BEAT_TIMES[t+1], its eight frames spread evenly inside. Everything
+		// derives from the audio context's clock, so drift and tab
+		// suspensions self-correct — the audio clock is the only clock.
+		//
+		// Playback runs 0..duration once, then cycles [loopStart, duration).
+		// The markers were tapped past the file's end on purpose, so both
+		// segments get whole 8-frame turns and %8 stays aligned forever.
+		let firstPass: number[] | null = null
+		let loopPass: number[] = []
+
+		function buildFrameTimes(fromBeat: number, duration: number): number[] {
+			const frames: number[] = []
+			for (
+				let k = fromBeat;
+				k + 1 < BEAT_TIMES.length && BEAT_TIMES[k]! < duration;
+				k++
+			) {
+				const a = BEAT_TIMES[k]!
+				const b = BEAT_TIMES[k + 1]!
+				for (let f = 0; f < 8; f++) {
+					frames.push(a + ((b - a) * f) / 8)
+				}
+			}
+			return frames
+		}
+
+		function framesElapsed(times: number[], t: number): number {
+			let lo = 0
+			let hi = times.length
+			while (lo < hi) {
+				const mid = (lo + hi) >> 1
+				if (times[mid]! <= t) lo = mid + 1
+				else hi = mid
+			}
+			return lo
+		}
+
+		function tickFrame(isLast: boolean) {
 			currentFrame += 1
 
-			// The step turns over together with the wrap to frame 0. Leaving
-			// the old pattern up for the frame-0 tick was fine for the
-			// through-moving tiles — their frame 0 is the next cell's entry —
-			// but a Death tile's frame 0 shows the dancer back at its entry
-			// for one tick after it had vanished, and a Birth's blinks it
-			// away right after it had appeared. Swapping the pattern on the
-			// same tick gives frame 0 to the tile that actually owns it.
 			if (currentFrame % 8 === 0 && currentFrame > 0) {
 				advanceSelection()
-				tileMap?.nextStep()
-				verifySelection()
+				if (isLast) {
+					// The videos land on frame 0 asynchronously; swapping the
+					// pattern before they do showed the LAST frame under the NEW
+					// tiles for a beat. Hold the step until the seek settles, so
+					// frame and pattern change together.
+					videoTextureArray?.setFrame(0).then(() => {
+						tileMap?.nextStep()
+						verifySelection()
+						updateFollowTarget()
+					})
+				} else {
+					tileMap?.nextStep()
+					verifySelection()
+				}
+			} else if (isLast) {
+				videoTextureArray?.setFrame(currentFrame % 8)
 			}
 
-			// End of turn 7: the rings are in place — hand the stage over
-			if (currentFrame === 56) {
+			// End of turn 4: the rings are in place — hand the stage over
+			if (currentFrame === 32) {
 				stageInteractive.value = true
 				aboutVisible.value = true
 			}
 
-			videoTextureArray?.setFrame(currentFrame % 8)
 			updateFollowTarget()
-		}, 1000 / 8.8)
+		}
+
+		useRafFn(() => {
+			const duration = audio.duration()
+			if (!duration) return
+			if (firstPass === null) {
+				firstPass = buildFrameTimes(0, duration)
+				// The loop rejoins on a beat; cut the loop timeline from there
+				const loopBeat = BEAT_TIMES.findIndex(
+					t => Math.abs(t - audio.loopStart) < 0.25
+				)
+				loopPass = buildFrameTimes(Math.max(loopBeat, 0), duration)
+			}
+
+			// Frames the audio has passed; catch up in a burst if we are
+			// behind (returning from a hidden tab, or the loop seam skipping
+			// the tail of a turn the audio ended inside). Only the last frame
+			// of a burst touches the videos.
+			const elapsed = audio.elapsed()
+			let target: number
+			if (elapsed < duration) {
+				target = framesElapsed(firstPass, elapsed)
+			} else {
+				const cycle = duration - audio.loopStart
+				const turns = Math.floor((elapsed - duration) / cycle)
+				const position = audio.loopStart + ((elapsed - duration) % cycle)
+				target =
+					firstPass.length +
+					turns * loopPass.length +
+					framesElapsed(loopPass, position)
+			}
+			while (currentFrame < target) {
+				tickFrame(currentFrame + 1 === target)
+			}
+		})
 
 		return {
 			resolution(context: Regl.DefaultContext) {

@@ -25,16 +25,20 @@ export function useVideoTexture(regl: Regl.Regl, videoSrc: string) {
 		texture.value = regl.texture(videoElement)
 	}
 
-	const setFrame = async (frameNumber: number, fps: number = 12) => {
+	// Seek without uploading, so the caller can land every video first and
+	// then push all textures in one go — uploading as each seek converges
+	// lets a mix of old and new frames onto the screen.
+	const seekFrame = async (frameNumber: number, fps: number = 12) => {
 		if (!texture.value || !video.value) return
 
 		const timeInSeconds = (frameNumber + 0.01) / fps
 		video.value.currentTime = timeInSeconds
 
-		// Wait for video to seek to the correct frame
+		// Half a frame of tolerance: the previous 0.1s accepted the
+		// neighbouring frame's time as converged.
 		await new Promise<void>(resolve => {
 			const checkTime = () => {
-				if (Math.abs(video.value!.currentTime - timeInSeconds) < 0.1) {
+				if (Math.abs(video.value!.currentTime - timeInSeconds) < 1 / 24) {
 					resolve()
 				} else {
 					requestAnimationFrame(checkTime)
@@ -42,8 +46,15 @@ export function useVideoTexture(regl: Regl.Regl, videoSrc: string) {
 			}
 			checkTime()
 		})
+	}
 
-		texture.value.subimage(video.value)
+	const upload = () => {
+		if (texture.value && video.value) texture.value.subimage(video.value)
+	}
+
+	const setFrame = async (frameNumber: number, fps: number = 12) => {
+		await seekFrame(frameNumber, fps)
+		upload()
 	}
 
 	// Clean up on unmount
@@ -60,6 +71,8 @@ export function useVideoTexture(regl: Regl.Regl, videoSrc: string) {
 	return {
 		texture,
 		load,
+		seekFrame,
+		upload,
 		setFrame,
 	}
 }

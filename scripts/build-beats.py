@@ -14,7 +14,10 @@ each:
             iron that out too. --swing adds an alternating basis to the fit,
             so the even/odd offset survives smoothing.
   latency   tapping runs systematically late. --offset SECONDS shifts the
-            whole grid (negative = earlier), applied last.
+            whole grid (negative = earlier), applied last. The first beat is
+            deliberately placed and is never moved: after smoothing (and any
+            offset) the grid is re-anchored so beat 0 stays exactly where it
+            was tapped.
 
 Suspicious intervals (missed or doubled taps) are reported against the local
 median, not auto-fixed: the source of truth is the AE comp, so fix it there
@@ -90,7 +93,10 @@ def main():
     if args.smooth % 2 == 0:
         sys.exit('--smooth must be odd')
 
-    doc = json.load(io.open(args.markers, encoding='utf-8'))
+    # AE's save dialog can append on re-export, leaving two concatenated
+    # JSON documents in one file — parse the first and ignore the rest.
+    doc = json.JSONDecoder().raw_decode(
+        io.open(args.markers, encoding='utf-8').read())[0]
     raw = sorted(doc['times'])
     if len(raw) < 4:
         sys.exit(f'only {len(raw)} markers — not enough for a grid')
@@ -105,7 +111,10 @@ def main():
             print(f'!! beats {i}-{i + 1}: {g:.3f}s — missed tap?')
 
     smoothed = smooth(raw, args.smooth, args.swing)
-    final = [t + args.offset for t in smoothed]
+    shifted = [t + args.offset for t in smoothed]
+    # Beat 0 is sacred: re-anchor so it lands exactly where it was tapped
+    anchor = raw[0] - shifted[0]
+    final = [t + anchor for t in shifted]
 
     def spread(ts):
         ds = [b - a for a, b in zip(ts, ts[1:])]
