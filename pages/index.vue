@@ -776,6 +776,11 @@ useRegl<Uniforms>(canvas, {
 		}
 	},
 	onFrame() {
+		// Nothing draws before the first beat: the standing bridge already
+		// holds turn 1's Birth tiles, and some artists' first appear frame
+		// carries visible ink — it used to peek through the title screen.
+		if (currentFrame === 0) return null
+
 		// Settle the camera (flick glide, follow) inside the very callback
 		// that draws, so the dancer's cell and the camera can never be a
 		// frame apart
