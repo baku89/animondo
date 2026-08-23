@@ -100,6 +100,8 @@ interface Uniforms {
 	tileMap: Regl.Texture2D
 	tileMapSize: Regl.Vec2
 	navMatrix: Regl.Mat3
+	focusCell: Regl.Vec2
+	focusFade: number
 }
 
 const audio = useKawachiAudio()
@@ -160,6 +162,11 @@ const selectedArtist = computed(() =>
 	selection.value ? ARTISTS[selection.value.artistIndex] : null
 )
 
+// How far the unwatched crowd fades toward the paper while a dancer is
+// followed (shader-side mix toward white), and its eased current value
+const FOCUS_DIM = 0.5
+let focusDim = 0
+
 // Keyboard steering. The centre of the screen is resolved on demand rather
 // than captured, so a pattern built around the middle of the grid keeps
 // landing where the visitor is looking even after they pan. While a dancer
@@ -186,6 +193,22 @@ const BUBBLE_MIN_WIDTH = 288
 type BubbleSide = 'top' | 'bottom' | 'left' | 'right'
 const bubbleSide = ref<BubbleSide>('top')
 
+// To keep the camera's travel as small as possible, only the axis that makes
+// room for the bubble moves: the cross axis keeps the character where it was
+// tapped (clamped so the tail can still reach it), and the tail slides along
+// the bubble's edge — as far as just short of the corners — to point at it.
+const bubbleCross = ref(0)
+/** How close to a bubble corner the tail's centre may slide */
+const TAIL_INSET = 44
+/** Border-image band width; the tail is positioned inside the padding box */
+const BUBBLE_BORDER = 16
+// Measured on enter; the left/right layouts need it to clamp the box into
+// the viewport without a translate(-50%) (height is fit-content)
+const bubbleHeight = ref(0)
+
+const clamp = (v: number, lo: number, hi: number) =>
+	Math.min(Math.max(v, lo), hi)
+
 // The hand-drawn frame's boil frames are only requested by CSS once the
 // first bubble opens; preload them so it doesn't flicker in piecemeal.
 useHead({
@@ -205,23 +228,38 @@ const charHalf = computed(() =>
 	)
 )
 
-// The screen point the camera steers the character to. Rather than pinning
-// the character to the centre, it is pushed toward the edge opposite the
-// bubble, so the bubble can take the rest of the screen.
+// The screen point the camera steers the character to. Only the axis that
+// makes room for the bubble is imposed (pushed toward the edge opposite the
+// bubble); the cross axis stays where the character was tapped, so the
+// camera never pans more than it has to.
 const characterAnchor = computed<[number, number]>(() => {
 	const vw = winWidth.value
 	const vh = winHeight.value
 	const half = charHalf.value
+	const cross = bubbleCross.value
 
 	switch (bubbleSide.value) {
 		case 'right':
-			return [BUBBLE_MARGIN + half, vh / 2]
-		case 'left':
-			return [vw - BUBBLE_MARGIN - half, vh / 2]
-		case 'bottom':
-			return [vw / 2, BUBBLE_TOP_CLEARANCE + half]
-		default: // 'top'
-			return [vw / 2, vh - BUBBLE_BOTTOM_CLEARANCE - half]
+		case 'left': {
+			const y = clamp(
+				cross,
+				BUBBLE_TOP_CLEARANCE + TAIL_INSET,
+				vh - BUBBLE_BOTTOM_CLEARANCE - TAIL_INSET
+			)
+			return bubbleSide.value === 'right'
+				? [BUBBLE_MARGIN + half, y]
+				: [vw - BUBBLE_MARGIN - half, y]
+		}
+		default: {
+			const x = clamp(
+				cross,
+				BUBBLE_MARGIN + TAIL_INSET,
+				vw - BUBBLE_MARGIN - TAIL_INSET
+			)
+			return bubbleSide.value === 'bottom'
+				? [x, BUBBLE_TOP_CLEARANCE + half]
+				: [x, vh - BUBBLE_BOTTOM_CLEARANCE - half]
+		}
 	}
 })
 
@@ -229,56 +267,74 @@ watchEffect(() => {
 	zui.followAnchor.value = selection.value ? characterAnchor.value : null
 })
 
-const bubbleStyle = computed(() => {
+const bubbleStyle = computed<Record<string, string>>(() => {
 	const vw = winWidth.value
 	const vh = winHeight.value
 	const half = charHalf.value
 	const [ax, ay] = characterAnchor.value
+	const side = bubbleSide.value
 
 	// The bubble grows from the edge facing the character (fit-content),
-	// capped so it never runs past the margins on the far side.
-	switch (bubbleSide.value) {
-		case 'right': {
-			const edge = ax + half + BUBBLE_GAP
-			return {
-				left: `${edge}px`,
-				top: `${ay}px`,
-				translate: '0 -50%',
-				width: `${Math.min(vw - BUBBLE_MARGIN - edge, BUBBLE_MAX_WIDTH)}px`,
-				maxHeight: `${vh - 2 * BUBBLE_TOP_CLEARANCE}px`,
-			}
+	// capped so it never runs past the margins on the far side. The box is
+	// laid to fit the viewport first, then the tail slides along its edge
+	// (up to TAIL_INSET short of the corners) to point at the character —
+	// so an off-centre character doesn't drag the whole box with it.
+	if (side === 'top' || side === 'bottom') {
+		const width = Math.min(vw - 2 * BUBBLE_MARGIN, BUBBLE_MAX_WIDTH)
+		const left = clamp(ax - width / 2, BUBBLE_MARGIN, vw - BUBBLE_MARGIN - width)
+		const tail = clamp(ax - left, TAIL_INSET, width - TAIL_INSET)
+		const common = {
+			left: `${left}px`,
+			width: `${width}px`,
+			'--tail-pos': `${tail - BUBBLE_BORDER}px`,
 		}
-		case 'left': {
-			const edge = ax - half - BUBBLE_GAP
-			return {
-				right: `${vw - edge}px`,
-				top: `${ay}px`,
-				translate: '0 -50%',
-				width: `${Math.min(edge - BUBBLE_MARGIN, BUBBLE_MAX_WIDTH)}px`,
-				maxHeight: `${vh - 2 * BUBBLE_TOP_CLEARANCE}px`,
-			}
-		}
-		case 'bottom': {
+
+		if (side === 'bottom') {
 			const edge = ay + half + BUBBLE_GAP
 			return {
+				...common,
 				top: `${edge}px`,
-				left: `${ax}px`,
-				translate: '-50% 0',
-				width: `${Math.min(vw - 2 * BUBBLE_MARGIN, BUBBLE_MAX_WIDTH)}px`,
 				maxHeight: `${vh - BUBBLE_BOTTOM_CLEARANCE - edge}px`,
 			}
 		}
-		default: {
-			// 'top'
-			const edge = ay - half - BUBBLE_GAP
-			return {
-				bottom: `${vh - edge}px`,
-				left: `${ax}px`,
-				translate: '-50% 0',
-				width: `${Math.min(vw - 2 * BUBBLE_MARGIN, BUBBLE_MAX_WIDTH)}px`,
-				maxHeight: `${edge - BUBBLE_TOP_CLEARANCE}px`,
-			}
+		const edge = ay - half - BUBBLE_GAP
+		return {
+			...common,
+			bottom: `${vh - edge}px`,
+			maxHeight: `${edge - BUBBLE_TOP_CLEARANCE}px`,
 		}
+	}
+
+	const edge = side === 'right' ? ax + half + BUBBLE_GAP : ax - half - BUBBLE_GAP
+	const common = {
+		...(side === 'right'
+			? {left: `${edge}px`}
+			: {right: `${vw - edge}px`}),
+		width: `${Math.min(
+			side === 'right' ? vw - BUBBLE_MARGIN - edge : edge - BUBBLE_MARGIN,
+			BUBBLE_MAX_WIDTH
+		)}px`,
+		maxHeight: `${vh - BUBBLE_TOP_CLEARANCE - BUBBLE_BOTTOM_CLEARANCE}px`,
+	}
+
+	// Height is fit-content, so sliding the box needs the measured height;
+	// until the enter hook has supplied it (pre-first-paint), centre on the
+	// anchor — the corrected position lands before anything is painted.
+	const height = bubbleHeight.value
+	if (!height) {
+		return {...common, top: `${ay}px`, translate: '0 -50%'}
+	}
+
+	const top = clamp(
+		ay - height / 2,
+		BUBBLE_TOP_CLEARANCE,
+		Math.max(vh - BUBBLE_BOTTOM_CLEARANCE - height, BUBBLE_TOP_CLEARANCE)
+	)
+	const tail = clamp(ay - top, TAIL_INSET, height - TAIL_INSET)
+	return {
+		...common,
+		top: `${top}px`,
+		'--tail-pos': `${tail - BUBBLE_BORDER}px`,
 	}
 })
 
@@ -301,8 +357,22 @@ let cancelSizing: (() => void) | null = null
 function stepBubbleSize(el: HTMLElement, factors: number[], done: () => void) {
 	const prevWidth = el.style.width
 	const prevHeight = el.style.height
+	const prevTail = el.style.getPropertyValue('--tail-pos')
 	const width = el.offsetWidth
 	const height = el.offsetHeight
+
+	// Inflate out of the tail: while the box scales, the tail's position on
+	// screen stays fixed, so the cross coordinate shifts by what the tail
+	// offset loses and the balloon grows from where it points. The tail
+	// offset is padding-box based; border-box maths needs the band added.
+	const vertical =
+		el.classList.contains('profile-bubble--top') ||
+		el.classList.contains('profile-bubble--bottom')
+	const crossProp = vertical ? 'left' : 'top'
+	const cross = Number.parseFloat(el.style.getPropertyValue(crossProp))
+	const tail = Number.parseFloat(prevTail) + BUBBLE_BORDER
+	const anchored = Number.isFinite(cross) && Number.isFinite(tail)
+	const prevCross = el.style.getPropertyValue(crossProp)
 
 	// Hides the contents (CSS), which would spill out of a half-grown frame
 	el.classList.add('profile-bubble--sizing')
@@ -310,12 +380,23 @@ function stepBubbleSize(el: HTMLElement, factors: number[], done: () => void) {
 	const apply = (f: number) => {
 		el.style.width = `${Math.round(width * f)}px`
 		el.style.height = `${Math.round(height * f)}px`
+		if (anchored) {
+			el.style.setProperty('--tail-pos', `${tail * f - BUBBLE_BORDER}px`)
+			el.style.setProperty(crossProp, `${cross + tail * (1 - f)}px`)
+		}
+	}
+
+	const restore = (property: string, value: string) => {
+		if (value) el.style.setProperty(property, value)
+		else el.style.removeProperty(property)
 	}
 
 	const finish = () => {
 		clearInterval(timer)
-		el.style.width = prevWidth
-		el.style.height = prevHeight
+		restore('width', prevWidth)
+		restore('height', prevHeight)
+		restore('--tail-pos', prevTail)
+		restore(crossProp, prevCross)
 		el.classList.remove('profile-bubble--sizing')
 	}
 
@@ -334,8 +415,15 @@ function stepBubbleSize(el: HTMLElement, factors: number[], done: () => void) {
 	return finish
 }
 
-function onBubbleEnter(el: Element, done: () => void) {
+async function onBubbleEnter(el: Element, done: () => void) {
 	cancelSizing?.()
+	// Measured before the first paint; the left/right layouts read it to
+	// clamp the box into the viewport and to place the tail. The tick lets
+	// that corrected style land before the grow captures inline styles —
+	// still ahead of the browser's next paint.
+	bubbleHeight.value = (el as HTMLElement).offsetHeight
+	await nextTick()
+	if (!el.isConnected) return
 	cancelSizing = stepBubbleSize(el as HTMLElement, GROW_FACTORS, done)
 }
 
@@ -389,6 +477,122 @@ function deselect() {
 	zui.followTarget.value = null
 }
 
+// --- The beat clock ---
+// Created once per component, in setup, so unmounting disposes it — a
+// clock created inside onInit (after an await, outside the effect
+// scope) survived HMR remounts as a zombie and double-stepped the
+// automaton.
+// The music sways, so the step clock follows Baku's hand-tapped beat
+// grid instead of a flat interval: turn t spans BEAT_TIMES[t] to
+// BEAT_TIMES[t+1], its eight frames spread evenly inside. Everything
+// derives from the audio context's clock, so drift and tab
+// suspensions self-correct — the audio clock is the only clock.
+//
+// Playback runs 0..duration once, then cycles [loopStart, duration).
+// The markers were tapped past the file's end on purpose, so both
+// segments get whole 8-frame turns and %8 stays aligned forever.
+let firstPass: number[] | null = null
+let loopPass: number[] = []
+
+function buildFrameTimes(fromBeat: number, duration: number): number[] {
+	const frames: number[] = []
+	for (
+		let k = fromBeat;
+		k + 1 < BEAT_TIMES.length && BEAT_TIMES[k]! < duration;
+		k++
+	) {
+		const a = BEAT_TIMES[k]!
+		const b = BEAT_TIMES[k + 1]!
+		for (let f = 0; f < 8; f++) {
+			frames.push(a + ((b - a) * f) / 8)
+		}
+	}
+	return frames
+}
+
+function framesElapsed(times: number[], t: number): number {
+	let lo = 0
+	let hi = times.length
+	while (lo < hi) {
+		const mid = (lo + hi) >> 1
+		if (times[mid]! <= t) lo = mid + 1
+		else hi = mid
+	}
+	return lo
+}
+
+function tickFrame(isLast: boolean) {
+	currentFrame += 1
+
+	const frame = currentFrame % 8
+	if (frame === 0 && currentFrame > 0) {
+		advanceSelection()
+		if (isLast) {
+			// present() resolves synchronously when frame 0 was prepared
+			// during the previous frame's slot, so texture and pattern
+			// change in one task and nothing of the old turn flashes.
+			videoTextureArray?.present(0).then(() => {
+				tileMap?.nextStep()
+				verifySelection()
+				updateFollowTarget()
+				videoTextureArray?.prepare(1)
+			})
+		} else {
+			tileMap?.nextStep()
+			verifySelection()
+		}
+	} else if (isLast) {
+		// Show this frame, then start the videos toward the next one so
+		// it is decoded and waiting when its slot arrives
+		videoTextureArray?.present(frame).then(() => {
+			videoTextureArray?.prepare((frame + 1) % 8)
+		})
+	}
+
+	// End of turn 4: the rings are in place — hand the stage over
+	if (currentFrame === 32) {
+		stageInteractive.value = true
+		aboutVisible.value = true
+	}
+
+	updateFollowTarget()
+}
+
+useRafFn(() => {
+	if (!audio.hasStarted.value) return
+	const duration = audio.duration()
+	if (!duration) return
+	if (firstPass === null) {
+		firstPass = buildFrameTimes(0, duration)
+		// The loop rejoins on a beat; cut the loop timeline from there
+		const loopBeat = BEAT_TIMES.findIndex(
+			t => Math.abs(t - audio.loopStart) < 0.25
+		)
+		loopPass = buildFrameTimes(Math.max(loopBeat, 0), duration)
+	}
+
+	// Frames the audio has passed; catch up in a burst if we are
+	// behind (returning from a hidden tab, or the loop seam skipping
+	// the tail of a turn the audio ended inside). Only the last frame
+	// of a burst touches the videos.
+	const elapsed = audio.elapsed()
+	let target: number
+	if (elapsed < duration) {
+		target = framesElapsed(firstPass, elapsed)
+	} else {
+		const cycle = duration - audio.loopStart
+		const turns = Math.floor((elapsed - duration) / cycle)
+		const position = audio.loopStart + ((elapsed - duration) % cycle)
+		target =
+			firstPass.length +
+			turns * loopPass.length +
+			framesElapsed(loopPass, position)
+	}
+	while (currentFrame < target) {
+		tickFrame(currentFrame + 1 === target)
+	}
+})
+
 // Panning cancels the follow inside useZUI; drop the bubble too
 watch(zui.followTarget, target => {
 	if (!target) selection.value = null
@@ -428,6 +632,12 @@ zui.onTap((clientX, clientY) => {
 			: clientY < vh / 2
 				? 'bottom'
 				: 'top'
+
+	// Pin the cross axis to where the character stands right now, so the
+	// camera only travels along the axis that makes room for the bubble
+	const [charX, charY] = zui.worldToScreen([cell[0] + 0.5, cell[1] + 0.5])
+	bubbleCross.value =
+		bubbleSide.value === 'top' || bubbleSide.value === 'bottom' ? charX : charY
 
 	selection.value = {
 		cell,
@@ -541,119 +751,10 @@ useRegl<Uniforms>(canvas, {
 		])
 		assetsReady.value = true
 
-		// Wait for audio to start
-		await audio.waitForPlay()
-
-		// --- The beat clock ---
-		// The music sways, so the step clock follows Baku's hand-tapped beat
-		// grid instead of a flat interval: turn t spans BEAT_TIMES[t] to
-		// BEAT_TIMES[t+1], its eight frames spread evenly inside. Everything
-		// derives from the audio context's clock, so drift and tab
-		// suspensions self-correct — the audio clock is the only clock.
-		//
-		// Playback runs 0..duration once, then cycles [loopStart, duration).
-		// The markers were tapped past the file's end on purpose, so both
-		// segments get whole 8-frame turns and %8 stays aligned forever.
-		let firstPass: number[] | null = null
-		let loopPass: number[] = []
-
-		function buildFrameTimes(fromBeat: number, duration: number): number[] {
-			const frames: number[] = []
-			for (
-				let k = fromBeat;
-				k + 1 < BEAT_TIMES.length && BEAT_TIMES[k]! < duration;
-				k++
-			) {
-				const a = BEAT_TIMES[k]!
-				const b = BEAT_TIMES[k + 1]!
-				for (let f = 0; f < 8; f++) {
-					frames.push(a + ((b - a) * f) / 8)
-				}
-			}
-			return frames
-		}
-
-		function framesElapsed(times: number[], t: number): number {
-			let lo = 0
-			let hi = times.length
-			while (lo < hi) {
-				const mid = (lo + hi) >> 1
-				if (times[mid]! <= t) lo = mid + 1
-				else hi = mid
-			}
-			return lo
-		}
-
-		function tickFrame(isLast: boolean) {
-			currentFrame += 1
-
-			const frame = currentFrame % 8
-			if (frame === 0 && currentFrame > 0) {
-				advanceSelection()
-				if (isLast) {
-					// present() resolves synchronously when frame 0 was prepared
-					// during the previous frame's slot, so texture and pattern
-					// change in one task and nothing of the old turn flashes.
-					videoTextureArray?.present(0).then(() => {
-						tileMap?.nextStep()
-						verifySelection()
-						updateFollowTarget()
-						videoTextureArray?.prepare(1)
-					})
-				} else {
-					tileMap?.nextStep()
-					verifySelection()
-				}
-			} else if (isLast) {
-				// Show this frame, then start the videos toward the next one so
-				// it is decoded and waiting when its slot arrives
-				videoTextureArray?.present(frame).then(() => {
-					videoTextureArray?.prepare((frame + 1) % 8)
-				})
-			}
-
-			// End of turn 4: the rings are in place — hand the stage over
-			if (currentFrame === 32) {
-				stageInteractive.value = true
-				aboutVisible.value = true
-			}
-
-			updateFollowTarget()
-		}
-
-		useRafFn(() => {
-			const duration = audio.duration()
-			if (!duration) return
-			if (firstPass === null) {
-				firstPass = buildFrameTimes(0, duration)
-				// The loop rejoins on a beat; cut the loop timeline from there
-				const loopBeat = BEAT_TIMES.findIndex(
-					t => Math.abs(t - audio.loopStart) < 0.25
-				)
-				loopPass = buildFrameTimes(Math.max(loopBeat, 0), duration)
-			}
-
-			// Frames the audio has passed; catch up in a burst if we are
-			// behind (returning from a hidden tab, or the loop seam skipping
-			// the tail of a turn the audio ended inside). Only the last frame
-			// of a burst touches the videos.
-			const elapsed = audio.elapsed()
-			let target: number
-			if (elapsed < duration) {
-				target = framesElapsed(firstPass, elapsed)
-			} else {
-				const cycle = duration - audio.loopStart
-				const turns = Math.floor((elapsed - duration) / cycle)
-				const position = audio.loopStart + ((elapsed - duration) % cycle)
-				target =
-					firstPass.length +
-					turns * loopPass.length +
-					framesElapsed(loopPass, position)
-			}
-			while (currentFrame < target) {
-				tickFrame(currentFrame + 1 === target)
-			}
-		})
+		// The beat clock lives in setup, not here: onInit can run again
+		// (regl re-init, HMR remount), and a clock born after an await sits
+		// outside the effect scope, so it would survive as a zombie stepping
+		// a second automaton — which scrambled the appear/vanish bridges.
 
 		return {
 			resolution(context: Regl.DefaultContext) {
@@ -670,9 +771,22 @@ useRegl<Uniforms>(canvas, {
 			tileMap: regl.prop<Uniforms, 'tileMap'>('tileMap'),
 			tileMapSize: [tileMap.width, tileMap.height],
 			navMatrix: regl.prop<Uniforms, 'navMatrix'>('navMatrix'),
+			focusCell: regl.prop<Uniforms, 'focusCell'>('focusCell'),
+			focusFade: regl.prop<Uniforms, 'focusFade'>('focusFade'),
 		}
 	},
 	onFrame() {
+		// Settle the camera (flick glide, follow) inside the very callback
+		// that draws, so the dancer's cell and the camera can never be a
+		// frame apart
+		zui.syncCamera()
+
+		// While a dancer is watched, the rest of the crowd recedes toward
+		// the paper — for now a plain fade toward white; a paper texture is
+		// meant to take this over eventually. Eased per rendered frame.
+		const sel = selection.value
+		focusDim += ((sel ? FOCUS_DIM : 0) - focusDim) * 0.12
+
 		const [
 			video0,
 			video1,
@@ -708,6 +822,15 @@ useRegl<Uniforms>(canvas, {
 			video7,
 			tileMap: tileMap.texture,
 			navMatrix: zui.inverseMatrix.value,
+			focusCell: (sel
+				? [
+						((sel.cell[0] % Patterns.size.width) + Patterns.size.width) %
+							Patterns.size.width,
+						((sel.cell[1] % Patterns.size.height) + Patterns.size.height) %
+							Patterns.size.height,
+					]
+				: [-1, -1]) as Regl.Vec2,
+			focusFade: focusDim,
 		}
 	},
 })
@@ -793,17 +916,19 @@ main
 
 	// Bubble above the character — tail below, pointing down. The 34px
 	// offset (from the padding box) leaves the tail's root just touching
-	// the border line rather than sinking into the balloon.
+	// the border line rather than sinking into the balloon. --tail-pos
+	// (from bubbleStyle, padding-box coordinates) slides the tail along the
+	// edge toward the character; without it, the tail sits in the middle.
 	&--top
 		&::after
 			bottom -34px
-			left 50%
+			left var(--tail-pos, 50%)
 			translate -50% 0
 
 	&--bottom
 		&::after
 			top -34px
-			left 50%
+			left var(--tail-pos, 50%)
 			translate -50% 0
 			rotate 180deg
 
@@ -811,14 +936,14 @@ main
 	&--right
 		&::after
 			left -34px
-			top 50%
+			top var(--tail-pos, 50%)
 			translate 0 -50%
 			rotate 90deg
 
 	&--left
 		&::after
 			right -34px
-			top 50%
+			top var(--tail-pos, 50%)
 			translate 0 -50%
 			rotate -90deg
 

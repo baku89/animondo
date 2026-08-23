@@ -73,6 +73,14 @@ export function useKawachiAudio() {
 
 	const playPromise: PromiseWithResolvers<void> = Promise.withResolvers()
 
+	// Die with the component: an HMR remount otherwise leaves the old
+	// source playing underneath the new one
+	onScopeDispose(() => {
+		source?.stop()
+		source = null
+		context.close()
+	})
+
 	return {
 		start: async () => {
 			source = context.createBufferSource()

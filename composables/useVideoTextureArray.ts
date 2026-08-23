@@ -132,18 +132,24 @@ async function loadCodecBackend(
 	textureArray.value = sprites.map(sprite => sprite.texture)
 
 	function ensure(sprite: CodecSprite, frameNumber: number) {
-		sprite.chain = sprite.chain.then(async () => {
-			if (sprite.frames.has(frameNumber)) return
-			// Anything else still stored was skipped over; let it go
-			for (const [index, frame] of sprite.frames) {
-				frame.close()
-				sprite.frames.delete(index)
-			}
-			sprite.decoder.decode(sprite.chunks[frameNumber]!)
-			// flush() drains the decoder deterministically — all-intra input
-			// means no inter-frame state is lost by doing so
-			await sprite.decoder.flush()
-		})
+		sprite.chain = sprite.chain
+			.then(async () => {
+				if (sprite.frames.has(frameNumber)) return
+				// Anything else still stored was skipped over; let it go
+				for (const [index, frame] of sprite.frames) {
+					frame.close()
+					sprite.frames.delete(index)
+				}
+				sprite.decoder.decode(sprite.chunks[frameNumber]!)
+				// flush() drains the decoder deterministically — all-intra
+				// input means no inter-frame state is lost by doing so
+				await sprite.decoder.flush()
+			})
+			// A rejected link would poison the chain for good: every later
+			// ensure would inherit the rejection and the pattern clock,
+			// which waits on present(), would never step again. Absorb it —
+			// one dropped frame beats a frozen automaton.
+			.catch(error => console.error(error))
 		return sprite.chain
 	}
 
