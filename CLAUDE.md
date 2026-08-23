@@ -298,8 +298,8 @@ nextStep() ごとに:
 
 ユーザーが目指す方向は **Web サイト = インタラクティブなアニメーション作品** への昇華。検討対象の例：
 
-- [ ] ビデオ 8 本を並列 seek している部分のパフォーマンス改善（`useVideoTexture.setFrame` の `requestAnimationFrame` 待ちが直列化要因）
-- [ ] スプライトのフォーマット（mp4 → WebP アニメ or 静止画スプライトシート）の検討
+- [x] ~~ビデオ 8 本を並列 seek している部分のパフォーマンス改善~~ → WebCodecs 化で解決。`useVideoTextureArray` は `utils/mp4Demux.ts`（自前の最小 MP4 パーサ）でサンプルを取り出し、`VideoDecoder` に 1 コマずつ食わせて `flush()` で確定受領する。スプライトは all-intra H.264 なので任意コマを単独デコード可能。`<video>` + seek は `VideoDecoder` 非対応ブラウザ用のフォールバックとして `useVideoTexture` に残存
+- [x] ~~スプライトのフォーマット（mp4 → WebP アニメ or 静止画スプライトシート）の検討~~ → mp4 続投で決着。シート全展開は GPU 384MB（8 作家 × 8 コマ × 1536×1024 RGBA）で不可。mp4 + WebCodecs なら GPU は現在コマのみ（48MB）でコマ精度も完全
 - [ ] UI: 「Tap To Start」だけの一発キックではなく、テンポ・パターン・参加作家を選べるインタラクション
 - [ ] モバイルでのタッチ（pinch zoom）操作の使い心地
 - [ ] 音と映像の頭出し精度（現状 8.8 Hz をだいたい合わせているだけ）
