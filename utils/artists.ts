@@ -8,6 +8,13 @@ export interface ArtistInfo {
 	url: Record<Locale, string>
 	/** Rendered markdown — injected with v-html, so keep the source trusted. */
 	profileHtml: Record<Locale, string>
+	/** Representative work, shown in the profile bubble */
+	work: {
+		title: Record<Locale, string>
+		year: string
+		/** Still image (public/works/{id}.webp) */
+		image: string
+	}
 }
 
 // Video index order: public/sprites/{id}.mp4 is loaded in this order, and the
@@ -37,6 +44,8 @@ const sources = import.meta.glob('../content/artists/*.md', {
 interface ArtistDoc {
 	name: string
 	url: string
+	workTitle: string
+	workYear: string
 	profileHtml: string
 }
 
@@ -106,9 +115,11 @@ function parseDoc(source: string, path: string): ArtistDoc {
 		fields[line.slice(0, colon).trim()] = line.slice(colon + 1).trim()
 	}
 
-	const {name, url} = fields
+	const {name, url, workTitle, workYear} = fields
 	if (!name) throw new Error(`${path}: frontmatter is missing "name"`)
 	if (!url) throw new Error(`${path}: frontmatter is missing "url"`)
+	if (!workTitle) throw new Error(`${path}: frontmatter is missing "workTitle"`)
+	if (!workYear) throw new Error(`${path}: frontmatter is missing "workYear"`)
 
 	const body = source
 		.slice(matched[0].length)
@@ -119,7 +130,13 @@ function parseDoc(source: string, path: string): ArtistDoc {
 
 	if (!body) throw new Error(`${path}: profile body is empty`)
 
-	return {name, url, profileHtml: marked.parse(body, {async: false})}
+	return {
+		name,
+		url,
+		workTitle,
+		workYear,
+		profileHtml: marked.parse(body, {async: false}),
+	}
 }
 
 function readDoc(id: string, locale: Locale): ArtistDoc {
@@ -140,5 +157,11 @@ export const ARTISTS: ArtistInfo[] = ARTIST_IDS.map(id => {
 		name: {en: en.name, ja: ja.name},
 		url: {en: en.url, ja: ja.url},
 		profileHtml: {en: en.profileHtml, ja: ja.profileHtml},
+		work: {
+			title: {en: en.workTitle, ja: ja.workTitle},
+			// The year needs no translation; the ja file's value is canonical
+			year: ja.workYear,
+			image: `/animondo/works/${id}.webp`,
+		},
 	}
 })
