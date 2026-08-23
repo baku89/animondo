@@ -502,14 +502,17 @@ useRegl<Uniforms>(canvas, {
 		// パターンジェネレーター関数（常にcを返す）
 		tileMap.setMovePattern(function* (): Generator<MovePattern, never, void> {
 			// The opening is choreographed. The wait for the music's entrance
-			// is no longer scripted here: the beat grid starts at the first
-			// tapped beat (~2.2s in), so no frame ticks before it and the
-			// first ring lands exactly on beat one. Births in turn k come from
-			// yield k+1's out, hence the doubled first mask: turns 1-4 grow
-			// four rings (2x2 .. 8x8, filling the short side at the opening
-			// zoom), turn 5 floods the rest, turn 6 reverses, turns 7-10
-			// sweep right, down, left, up.
-			yield Patterns.radialMask(Patterns.clockwise, 1)
+			// is the beat grid's own: no frame ticks before the first tapped
+			// beat (~2.2s in), so the first ring lands exactly on beat one.
+			// The head yield must be EMPTY — the opening bridge is built from
+			// the first two yields and shows before any tick, and a mask there
+			// parks visible dancers on screen through the wait. From empty,
+			// the pre-beat bridge is Birth tiles on their blank first frame.
+			// Births in turn k come from yield k+1's out: turns 1-4 grow four
+			// rings (2x2 .. 8x8, filling the short side at the opening zoom),
+			// turn 5 floods the rest, turn 6 reverses, turns 7-10 sweep
+			// right, down, left, up.
+			yield Patterns.empty
 			for (let i = 1; i <= 4; i++) {
 				yield Patterns.radialMask(Patterns.clockwise, i)
 			}
