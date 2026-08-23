@@ -33,8 +33,13 @@ export function useRegl<Uniforms extends Record<string, any>>(
 		regl = Regl({
 			canvas,
 			attributes: {
-				antialias: true,
+				// The scene is one full-screen quad: there is no geometry edge
+				// for MSAA to smooth, so antialiasing only buys a 4x resolve
+				// of a retina-sized canvas every frame — which Safari's Metal
+				// backend pays for dearly during pan and zoom.
+				antialias: false,
 				premultipliedAlpha: true,
+				powerPreference: 'high-performance',
 			},
 		})
 
