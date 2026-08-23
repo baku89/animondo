@@ -48,11 +48,17 @@ SS = 2  # supersampling factor
 FRAMES = 3
 
 TAIL_SIZE = 256
-# The base sits near the top of the canvas so the tail only just reaches
-# into the bubble's border band instead of sinking into the balloon; the
-# CSS offset in pages/index.vue is tuned to this.
+# With the CSS offset in pages/index.vue (-34px), the bubble's border ink
+# runs through the tail canvas at this height. The roots sit right on it —
+# the tail grows out of the edge line rather than sinking into the balloon.
+TAIL_LINE_LEVEL = 71
 TAIL_APEX = (128, 244)
-TAIL_BASE = [(52, 20), (204, 20)]
+# Root tops start a touch above the ink line so they still meet it when the
+# frame's own wiggle shifts the line
+TAIL_BASE = [(76, 50), (180, 50)]
+# The white fill starts just above the ink and only spans between the
+# roots: it opens the line under the peak (the rest of the line survives)
+TAIL_FILL_TOP = 40
 TAIL_STROKE = 18
 
 # The centreline path: per quadrant a straight run followed by a quarter
@@ -166,10 +172,13 @@ def render_tail(seed):
 
 	img = Image.new('RGBA', (TAIL_SIZE * SS, TAIL_SIZE * SS), (255, 255, 255, 0))
 	d = ImageDraw.Draw(img)
-	# White fill first (the base edge stays unstroked — it hides inside the
-	# bubble), then ink on the two slanted edges only.
-	fill = [(x * SS, y * SS) for x, y, _ in left] \
-		+ [(x * SS, y * SS) for x, y, _ in reversed(right)]
+	# White fill first: from just above the ink line down to the apex, so it
+	# erases the bubble's line only between the two roots. Then ink the two
+	# slanted edges — their tops merge with the surviving line ends.
+	fill = [(TAIL_BASE[0][0] * SS, TAIL_FILL_TOP * SS)] \
+		+ [(x * SS, y * SS) for x, y, _ in left] \
+		+ [(x * SS, y * SS) for x, y, _ in reversed(right)] \
+		+ [(TAIL_BASE[1][0] * SS, TAIL_FILL_TOP * SS)]
 	d.polygon(fill, fill=(255, 255, 255, 255))
 	stroke_polyline(d, left, SS)
 	stroke_polyline(d, right, SS)
@@ -179,7 +188,7 @@ def render_tail(seed):
 def load_fonts():
 	try:
 		return (ImageFont.truetype('/System/Library/Fonts/Helvetica.ttc', 30),
-			ImageFont.truetype('/System/Library/Fonts/Helvetica.ttc', 15))
+			ImageFont.truetype('/System/Library/Fonts/Helvetica.ttc', 12))
 	except OSError:
 		fallback = ImageFont.load_default()
 		return fallback, fallback
@@ -191,21 +200,14 @@ GRAY = (205, 205, 205, 255)
 DARK = (120, 120, 120, 255)
 
 
-def render_template():
-	img = Image.new('RGBA', (SIZE, SIZE), (255, 255, 255, 255))
-	d = ImageDraw.Draw(img)
-	font, _ = load_fonts()
+def draw_frame_guides(d, alpha=255):
+	"""Slice lines and gates, shared by the template and the worked example."""
+	cyan = (*CYAN[:3], alpha)
+	magenta = (*MAGENTA[:3], alpha)
 
 	for v in (SLICE, SIZE - SLICE):
-		d.line(((v, 0), (v, SIZE)), fill=CYAN, width=2)
-		d.line(((0, v), (SIZE, v)), fill=CYAN, width=2)
-
-	# Nominal centreline to trace over
-	n = int(PERIMETER / 2)
-	for i in range(n):
-		x, y, _, _ = path_point(i * PERIMETER / n)
-		r = STROKE / 2
-		d.ellipse((x - r, y - r, x + r, y + r), fill=GRAY)
+		d.line(((v, 0), (v, SIZE)), fill=cyan, width=2)
+		d.line(((0, v), (SIZE, v)), fill=cyan, width=2)
 
 	# Gates: the stroke must pass through these bars straight
 	for g in GATES:
@@ -214,7 +216,47 @@ def render_template():
 		d.polygon([
 			(x + sx * tx * 28 + sy * nx * 10, y + sx * ty * 28 + sy * ny * 10)
 			for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))
-		], outline=MAGENTA, width=3)
+		], outline=magenta, width=3)
+
+
+def draw_tail_guides(d, alpha=255):
+	cyan = (*CYAN[:3], alpha)
+	magenta = (*MAGENTA[:3], alpha)
+
+	# The strip where the bubble's border band overlaps the placed tail, and
+	# the exact height its ink line runs at
+	for v in (14, 128):
+		d.line(((0, v), (TAIL_SIZE, v)), fill=cyan, width=1)
+	d.line(((0, TAIL_LINE_LEVEL), (TAIL_SIZE, TAIL_LINE_LEVEL)),
+		fill=magenta, width=2)
+	# Top edge of the white fill, spanning only the opening between the roots
+	d.line(((TAIL_BASE[0][0], TAIL_FILL_TOP), (TAIL_BASE[1][0], TAIL_FILL_TOP)),
+		fill=cyan, width=1)
+
+
+def over_guides(art, size, draw_guides):
+	"""A production frame composited over its template guides — the worked
+	example showing what a correctly drawn frame looks like in place."""
+	img = Image.new('RGBA', (size, size), (255, 255, 255, 255))
+	img.alpha_composite(art)
+	overlay = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+	draw_guides(ImageDraw.Draw(overlay), alpha=150)
+	return Image.alpha_composite(img, overlay)
+
+
+def render_template():
+	img = Image.new('RGBA', (SIZE, SIZE), (255, 255, 255, 255))
+	d = ImageDraw.Draw(img)
+	font, _ = load_fonts()
+
+	draw_frame_guides(d)
+
+	# Nominal centreline to trace over
+	n = int(PERIMETER / 2)
+	for i in range(n):
+		x, y, _, _ = path_point(i * PERIMETER / n)
+		r = STROKE / 2
+		d.ellipse((x - r, y - r, x + r, y + r), fill=GRAY)
 
 	d.multiline_text((SIZE / 2, SIZE / 2),
 		'1024 x 1024 — slice 128 (cyan) — shown at border-width 16px (1/8)\n'
@@ -230,18 +272,15 @@ def render_tail_template():
 	d = ImageDraw.Draw(img)
 	_, small = load_fonts()
 
-	# The bubble's border band runs behind this strip when the tail is
-	# placed; the fill must stay white through it so it masks the line.
-	for v in (14, 128):
-		d.line(((0, v), (TAIL_SIZE, v)), fill=CYAN, width=1)
+	draw_tail_guides(d)
 
 	for p0, p1 in ((TAIL_BASE[0], TAIL_APEX), (TAIL_BASE[1], TAIL_APEX)):
 		d.line((p0, p1), fill=GRAY, width=TAIL_STROKE)
-	d.line((TAIL_BASE[0], TAIL_BASE[1]), fill=CYAN, width=1)
 
-	d.multiline_text((TAIL_SIZE / 2, 20),
-		'256 x 256, tip down — ink the two slants only;\n'
-		'white fill must stay solid across the cyan band',
+	d.multiline_text((TAIL_SIZE / 2, 18),
+		'256 x 256, tip down\n'
+		'roots on magenta = bubble edge\n'
+		'white fill between roots only',
 		fill=DARK, font=small, anchor='mm', align='center', spacing=4)
 	return img
 
@@ -258,6 +297,14 @@ def main():
 	render_template().save(ROOT / 'videos' / 'bubble-template.png')
 	render_tail_template().save(ROOT / 'videos' / 'bubble-tail-template.png')
 	print('templates -> videos/bubble-template.png, videos/bubble-tail-template.png')
+
+	# Worked examples: the frames actually shipped in public/bubble (same
+	# seeds), composited over the guides they were built to obey
+	over_guides(render_frame(1), SIZE, draw_frame_guides) \
+		.save(ROOT / 'videos' / 'bubble-example.png')
+	over_guides(render_tail(1), TAIL_SIZE, draw_tail_guides) \
+		.save(ROOT / 'videos' / 'bubble-tail-example.png')
+	print('examples -> videos/bubble-example.png, videos/bubble-tail-example.png')
 
 
 if __name__ == '__main__':
