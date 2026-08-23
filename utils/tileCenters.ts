@@ -3,24 +3,364 @@ import type {vec2} from 'linearly'
 import {Tile} from './tile'
 
 /**
- * Where the dancer actually is inside its cell, frame by frame.
+ * Where the dancer actually is inside its cell, frame by frame, per artist.
  *
- * Traced by hand in After Effects over baku's sheet — one null per tile,
- * keyframed across the eight frames of a step — and exported as
- * baku-centers.txt. Coordinates are the fraction across the cell as drawn on
- * screen, with y growing downward like the pattern grid.
+ * Traced by hand in After Effects: each {artist}_centers comp holds one null
+ * per directional tile, keyframed across the eight frames of a step over the
+ * 3x2 sheet. scripts/export-tile-centers.jsx dumps them to JSON and
+ * scripts/build-tile-centers.py rewrites the generated block below.
+ * Coordinates are the fraction across the cell as drawn on screen, with y
+ * growing downward like the pattern grid.
  *
  * Every tile is drawn in one canonical form: the dancer enters from the LEFT
  * and leaves toward whatever the tile is named after, which is why the four
  * directional tracks all start at x = 0. TILE_DISPLAY_TABLE bears this out —
- * the inDir=Left row is the only one whose rotation is 0 throughout. Birth is
- * the exception, appearing at the centre and leaving rightward.
- *
- * The artists drew to the same template but not to the same centres, so these
- * stand in for all eight. They place the bubble far better than the middle of
- * the cell did, which is what they are for.
+ * the inDir=Left row is the only one whose rotation is 0 throughout.
  */
-export const TILE_CENTERS: Partial<Record<Tile, vec2[]>> = {
+export const TILE_CENTERS: Record<string, Partial<Record<Tile, vec2[]>>> = {
+	// BEGIN GENERATED — scripts/build-tile-centers.py
+	baku: {
+		[Tile.Up]: [
+			[0.0, 0.5],
+			[0.1484, 0.5156],
+			[0.2812, 0.5469],
+			[0.4141, 0.5469],
+			[0.4844, 0.4609],
+			[0.4922, 0.3594],
+			[0.4922, 0.25],
+			[0.5, 0.1172],
+		],
+		[Tile.Right]: [
+			[0.0, 0.5],
+			[0.1339, 0.4401],
+			[0.2678, 0.3958],
+			[0.3783, 0.4375],
+			[0.4106, 0.5156],
+			[0.4957, 0.5234],
+			[0.6417, 0.5156],
+			[0.8438, 0.5156],
+		],
+		[Tile.Down]: [
+			[0.0, 0.5],
+			[0.0781, 0.5],
+			[0.1756, 0.5023],
+			[0.2732, 0.5415],
+			[0.3628, 0.6099],
+			[0.4224, 0.7347],
+			[0.4781, 0.8396],
+			[0.4922, 0.9609],
+		],
+		[Tile.Left]: [
+			[0.0, 0.5],
+			[0.1418, 0.474],
+			[0.2489, 0.4134],
+			[0.4189, 0.4091],
+			[0.4662, 0.5],
+			[0.3483, 0.5563],
+			[0.2347, 0.5454],
+			[0.1169, 0.5216],
+		],
+	},
+	edmunds: {
+		[Tile.Up]: [
+			[0.0, 0.5],
+			[0.0586, 0.4804],
+			[0.2251, 0.427],
+			[0.3073, 0.3703],
+			[0.3692, 0.2776],
+			[0.4278, 0.1882],
+			[0.481, 0.1096],
+			[0.5021, 0.0204],
+		],
+		[Tile.Right]: [
+			[0.0, 0.5],
+			[0.1379, 0.5],
+			[0.268, 0.5],
+			[0.3903, 0.5],
+			[0.5049, 0.5],
+			[0.636, 0.5],
+			[0.7713, 0.5],
+			[0.9549, 0.5],
+		],
+		[Tile.Down]: [
+			[0.0, 0.5],
+			[0.106, 0.4973],
+			[0.212, 0.5103],
+			[0.3297, 0.5858],
+			[0.398, 0.6664],
+			[0.4459, 0.7375],
+			[0.4786, 0.8415],
+			[0.4828, 0.9122],
+		],
+		[Tile.Left]: [
+			[0.0, 0.5],
+			[0.1806, 0.4245],
+			[0.33, 0.3802],
+			[0.4794, 0.3828],
+			[0.5633, 0.4682],
+			[0.3722, 0.5102],
+			[0.2027, 0.5051],
+			[0.0722, 0.5],
+		],
+	},
+	honami: {
+		[Tile.Up]: [
+			[0.0, 0.5],
+			[0.0696, 0.4572],
+			[0.1803, 0.4007],
+			[0.2841, 0.3578],
+			[0.315, 0.2709],
+			[0.3194, 0.1848],
+			[0.3989, 0.1055],
+			[0.4602, 0.0535],
+		],
+		[Tile.Right]: [
+			[0.0, 0.5],
+			[0.1885, 0.5939],
+			[0.3587, 0.4326],
+			[0.4561, 0.2485],
+			[0.5839, 0.2679],
+			[0.7071, 0.3466],
+			[0.8266, 0.4636],
+			[0.9431, 0.5],
+		],
+		[Tile.Down]: [
+			[0.0, 0.5],
+			[0.0833, 0.5153],
+			[0.1666, 0.5489],
+			[0.2431, 0.587],
+			[0.3181, 0.6464],
+			[0.3862, 0.7115],
+			[0.4361, 0.8085],
+			[0.4875, 0.9556],
+		],
+		[Tile.Left]: [
+			[0.0, 0.5],
+			[0.0576, 0.5],
+			[0.1153, 0.5],
+			[0.2901, 0.5],
+			[0.2234, 0.5],
+			[0.1581, 0.5],
+			[0.0947, 0.5],
+			[0.0391, 0.5],
+		],
+	},
+	masa: {
+		[Tile.Up]: [
+			[0.0, 0.5],
+			[0.0797, 0.5106],
+			[0.1813, 0.4288],
+			[0.26, 0.3346],
+			[0.319, 0.2373],
+			[0.3743, 0.1416],
+			[0.4575, 0.0584],
+			[0.4936, 0.0167],
+		],
+		[Tile.Right]: [
+			[0.0, 0.5],
+			[0.1053, 0.5124],
+			[0.2247, 0.5035],
+			[0.3265, 0.5],
+			[0.5106, 0.5],
+			[0.6404, 0.5],
+			[0.8428, 0.5],
+			[0.9425, 0.5],
+		],
+		[Tile.Down]: [
+			[0.0, 0.5],
+			[0.0623, 0.5085],
+			[0.1245, 0.517],
+			[0.2455, 0.5591],
+			[0.3306, 0.614],
+			[0.4163, 0.6845],
+			[0.4477, 0.8422],
+			[0.4916, 0.9412],
+		],
+		[Tile.Left]: [
+			[0.0, 0.5],
+			[0.001, 0.539],
+			[0.0115, 0.4525],
+			[0.041, 0.4238],
+			[0.0722, 0.4382],
+			[0.0602, 0.4838],
+			[0.041, 0.4958],
+			[0.0242, 0.4958],
+		],
+	},
+	noemie: {
+		[Tile.Up]: [
+			[0.0, 0.5],
+			[0.0857, 0.4641],
+			[0.1682, 0.4103],
+			[0.2458, 0.3494],
+			[0.3183, 0.2826],
+			[0.4001, 0.1937],
+			[0.4757, 0.0993],
+			[0.5012, 0.0398],
+		],
+		[Tile.Right]: [
+			[0.0, 0.5],
+			[0.0445, 0.5],
+			[0.089, 0.5],
+			[0.2223, 0.5],
+			[0.4362, 0.5],
+			[0.6933, 0.5],
+			[0.8429, 0.5],
+			[0.9568, 0.5],
+		],
+		[Tile.Down]: [
+			[0.0, 0.5],
+			[0.0559, 0.4972],
+			[0.1196, 0.5179],
+			[0.2068, 0.5474],
+			[0.2818, 0.6057],
+			[0.375, 0.6948],
+			[0.4445, 0.8541],
+			[0.4921, 0.9556],
+		],
+		[Tile.Left]: [
+			[0.0, 0.5],
+			[0.1367, 0.4818],
+			[0.2551, 0.4772],
+			[0.3599, 0.4954],
+			[0.3964, 0.5547],
+			[0.2597, 0.5866],
+			[0.1321, 0.5911],
+			[0.0319, 0.5456],
+		],
+	},
+	sander: {
+		[Tile.Up]: [
+			[0.0, 0.5],
+			[-0.0042, 0.5153],
+			[0.1451, 0.3991],
+			[0.3457, 0.1942],
+			[0.4484, 0.118],
+			[0.6437, 0.0175],
+			[0.6544, 0.0173],
+			[0.5558, 0.0216],
+		],
+		[Tile.Right]: [
+			[0.0, 0.5],
+			[0.0468, 0.5],
+			[0.1013, 0.5],
+			[0.2633, 0.5],
+			[0.4032, 0.5],
+			[0.5578, 0.5],
+			[0.8006, 0.5],
+			[0.9431, 0.5],
+		],
+		[Tile.Down]: [
+			[0.0, 0.5],
+			[0.059, 0.4898],
+			[0.196, 0.464],
+			[0.2941, 0.4988],
+			[0.3557, 0.5296],
+			[0.4446, 0.5858],
+			[0.4491, 0.7108],
+			[0.4328, 0.9738],
+		],
+		[Tile.Left]: [
+			[0.0, 0.5],
+			[0.0152, 0.5198],
+			[0.007, 0.6725],
+			[0.0105, 0.6591],
+			[0.0141, 0.6862],
+			[0.0273, 0.4593],
+			[0.0, 0.2824],
+			[0.0, 0.3828],
+		],
+	},
+	shinobu: {
+		[Tile.Up]: [
+			[0.0, 0.5],
+			[0.027, 0.4939],
+			[0.0539, 0.4878],
+			[0.0809, 0.4817],
+			[0.2051, 0.3783],
+			[0.3702, 0.234],
+			[0.4497, 0.1316],
+			[0.4914, 0.0372],
+		],
+		[Tile.Right]: [
+			[0.0, 0.5],
+			[0.0292, 0.5],
+			[0.0585, 0.5],
+			[0.0995, 0.5],
+			[0.4035, 0.5],
+			[0.6216, 0.5],
+			[0.8396, 0.5],
+			[0.8884, 0.5],
+		],
+		[Tile.Down]: [
+			[0.0, 0.5],
+			[0.0518, 0.5145],
+			[0.1036, 0.5368],
+			[0.1622, 0.5962],
+			[0.2421, 0.6677],
+			[0.3265, 0.7644],
+			[0.3957, 0.8547],
+			[0.451, 0.953],
+		],
+		[Tile.Left]: [
+			[0.0, 0.5],
+			[0.0749, 0.543],
+			[0.1811, 0.4844],
+			[0.3479, 0.418],
+			[0.4691, 0.4219],
+			[0.3423, 0.5],
+			[0.2232, 0.5],
+			[0.0781, 0.5],
+		],
+	},
+	sumito: {
+		[Tile.Up]: [
+			[0.0, 0.5],
+			[0.0339, 0.4662],
+			[0.0678, 0.4324],
+			[0.1844, 0.3448],
+			[0.2713, 0.2722],
+			[0.3526, 0.1754],
+			[0.4215, 0.0941],
+			[0.4748, 0.0332],
+		],
+		[Tile.Right]: [
+			[0.0, 0.5],
+			[0.0, 0.5],
+			[0.0298, 0.5],
+			[0.2269, 0.4516],
+			[0.4985, 0.3661],
+			[0.7961, 0.4107],
+			[0.9263, 0.4665],
+			[0.9933, 0.4963],
+		],
+		[Tile.Down]: [
+			[0.0, 0.5],
+			[0.0312, 0.5588],
+			[0.0528, 0.6918],
+			[0.1031, 0.723],
+			[0.2422, 0.747],
+			[0.3477, 0.795],
+			[0.4317, 0.9197],
+			[0.4748, 0.9796],
+		],
+		[Tile.Left]: [
+			[0.0, 0.5],
+			[0.0, 0.524],
+			[0.0, 0.5479],
+			[0.0, 0.5719],
+			[0.0, 0.5569],
+			[0.0, 0.5419],
+			[0.0, 0.527],
+			[0.0, 0.512],
+		],
+	},
+	// END GENERATED
+}
+
+// Appearing and vanishing barely stray from the template, so one trace (made
+// over baku's sheet) serves every artist — no per-artist nulls needed there.
+const SHARED_CENTERS: Partial<Record<Tile, vec2[]>> = {
 	[Tile.Death]: [
 		[0.0, 0.5],
 		[0.0637, 0.5],
@@ -30,46 +370,6 @@ export const TILE_CENTERS: Partial<Record<Tile, vec2[]>> = {
 		[0.3243, 0.5],
 		[0.3871, 0.5],
 		[0.4461, 0.5],
-	],
-	[Tile.Left]: [
-		[0.0, 0.5],
-		[0.1418, 0.474],
-		[0.2489, 0.4134],
-		[0.4189, 0.4091],
-		[0.4662, 0.5],
-		[0.3483, 0.5563],
-		[0.2348, 0.5454],
-		[0.1169, 0.5216],
-	],
-	[Tile.Down]: [
-		[0.0, 0.5],
-		[0.0781, 0.5],
-		[0.1756, 0.5023],
-		[0.2732, 0.5415],
-		[0.3628, 0.6099],
-		[0.4224, 0.7347],
-		[0.4781, 0.8396],
-		[0.4922, 0.9609],
-	],
-	[Tile.Right]: [
-		[0.0, 0.5],
-		[0.1339, 0.4401],
-		[0.2678, 0.3958],
-		[0.3783, 0.4375],
-		[0.4106, 0.5156],
-		[0.4957, 0.5234],
-		[0.6183, 0.5156],
-		[0.7578, 0.5],
-	],
-	[Tile.Up]: [
-		[0.0, 0.5],
-		[0.1484, 0.5156],
-		[0.2812, 0.5469],
-		[0.4141, 0.5469],
-		[0.4844, 0.4609],
-		[0.4922, 0.3594],
-		[0.4922, 0.25],
-		[0.5, 0.1172],
 	],
 	[Tile.Birth]: [
 		[0.5078, 0.5],
@@ -99,9 +399,11 @@ function unrotate([x, y]: vec2, rotation: number): vec2 {
 
 /**
  * The dancer's position within its cell: 0..1 on each axis, y downward.
- * Falls back to the middle for tiles nothing was traced for.
+ * Artists whose comp has not been exported yet borrow baku's tracks; tiles
+ * nothing was traced for fall back to the middle.
  */
 export function tileCenter(
+	artist: string,
 	tile: Tile,
 	rotation: number,
 	flipVertical: boolean,
@@ -114,7 +416,10 @@ export function tileCenter(
 		else if (tile === Tile.Down) tile = Tile.Up
 	}
 
-	const track = TILE_CENTERS[tile]
+	const track =
+		TILE_CENTERS[artist]?.[tile] ??
+		SHARED_CENTERS[tile] ??
+		TILE_CENTERS.baku?.[tile]
 	if (!track) return [0.5, 0.5]
 
 	const drawn = track[frame % track.length]!
