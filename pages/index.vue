@@ -587,24 +587,29 @@ useRegl<Uniforms>(canvas, {
 		function tickFrame(isLast: boolean) {
 			currentFrame += 1
 
-			if (currentFrame % 8 === 0 && currentFrame > 0) {
+			const frame = currentFrame % 8
+			if (frame === 0 && currentFrame > 0) {
 				advanceSelection()
 				if (isLast) {
-					// The videos land on frame 0 asynchronously; swapping the
-					// pattern before they do showed the LAST frame under the NEW
-					// tiles for a beat. Hold the step until the seek settles, so
-					// frame and pattern change together.
-					videoTextureArray?.setFrame(0).then(() => {
+					// present() resolves synchronously when frame 0 was prepared
+					// during the previous frame's slot, so texture and pattern
+					// change in one task and nothing of the old turn flashes.
+					videoTextureArray?.present(0).then(() => {
 						tileMap?.nextStep()
 						verifySelection()
 						updateFollowTarget()
+						videoTextureArray?.prepare(1)
 					})
 				} else {
 					tileMap?.nextStep()
 					verifySelection()
 				}
 			} else if (isLast) {
-				videoTextureArray?.setFrame(currentFrame % 8)
+				// Show this frame, then start the videos toward the next one so
+				// it is decoded and waiting when its slot arrives
+				videoTextureArray?.present(frame).then(() => {
+					videoTextureArray?.prepare((frame + 1) % 8)
+				})
 			}
 
 			// End of turn 4: the rings are in place — hand the stage over
