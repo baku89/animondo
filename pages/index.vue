@@ -62,6 +62,8 @@
 			class="canvas"
 			:class="{'canvas--locked': !stageInteractive}"
 		/>
+		<!-- Beat-sync debug: flashes on every beat of the tapped grid -->
+		<div v-if="beatFlash" class="beat-flash" />
 		<Transition :css="false" @enter="onBubbleEnter" @leave="onBubbleLeave">
 			<div
 				v-if="selectedArtist"
@@ -916,6 +918,36 @@ useRafFn(() => {
 	updateExploreTip()
 })
 
+// --- Beat-sync tuning & debugging ---
+
+// The step grid felt off the music, so the visuals run on a shifted clock:
+// the whole timeline — frame 0's first appearance included — lands
+// FRAME_OFFSET frame-slots away from its tapped time. Positive delays,
+// negative sends ahead of the beat. Overridable live with ?offset=N to
+// compare candidates without an edit.
+const searchParams = new URLSearchParams(location.search)
+const offsetParam = Number(searchParams.get('offset') ?? NaN)
+const FRAME_OFFSET = Number.isFinite(offsetParam) ? offsetParam : -1
+
+// One frame-slot: an eighth of the average tapped beat. The grid sways a
+// few ms around it, less than anyone can hear at a quarter-beat shift.
+const FRAME_SLOT =
+	(BEAT_TIMES[BEAT_TIMES.length - 1]! - BEAT_TIMES[0]!) /
+	(BEAT_TIMES.length - 1) /
+	8
+
+// A blue dot at the screen centre on every beat — of the TAPPED GRID, not
+// the offset visuals, so grid, dancers and music can be judged against each
+// other. Off by default; ?beat turns it on.
+const beatDebug = searchParams.has('beat')
+const beatFlash = ref(false)
+const {start: hideBeatFlash} = useTimeoutFn(
+	() => (beatFlash.value = false),
+	100,
+	{immediate: false}
+)
+let lastFlashedBeat = -1
+
 function advanceBeatClock() {
 	if (!audio.hasStarted.value) return
 	const duration = audio.duration()
@@ -943,9 +975,27 @@ function advanceBeatClock() {
 		)
 	}
 
+	const now = audio.elapsed()
+
+	// The flash reads the true clock — beat instants sit at target = 1, 9,
+	// 17, … since the frame times start ON the first tapped beat
+	if (beatDebug) {
+		const raw = frameTarget(now)
+		if (raw > 0) {
+			const beat = Math.floor((raw - 1) / 8)
+			if (beat > lastFlashedBeat) {
+				lastFlashedBeat = beat
+				beatFlash.value = true
+				hideBeatFlash()
+			}
+		}
+	}
+
+	// The visuals read a shifted clock instead, so every frame time — frame
+	// 0's included — moves off its tapped instant by the same quarter-beat.
 	// Catch-up bursts (a hidden tab, the loop seam) fall out of the same
 	// arithmetic; only the last frame of a burst touches the videos.
-	const target = frameTarget(audio.elapsed())
+	const target = frameTarget(now - FRAME_OFFSET * FRAME_SLOT)
 
 	while (currentFrame < target) {
 		tickFrame(currentFrame + 1 === target)
@@ -1257,6 +1307,19 @@ main
 	-webkit-user-select none
 	-moz-user-select none
 	-ms-user-select none
+
+// Beat-sync debug marker (see advanceBeatClock)
+.beat-flash
+	position fixed
+	top 50%
+	left 50%
+	width 24px
+	height 24px
+	translate -50% -50%
+	border-radius 50%
+	background #2266ff
+	z-index 200
+	pointer-events none
 
 .profile-bubble
 	display flex
