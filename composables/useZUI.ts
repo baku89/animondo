@@ -1,4 +1,4 @@
-import {useElementSize, useEventListener, useRafFn} from '@vueuse/core'
+import {useElementSize, useEventListener} from '@vueuse/core'
 import {mat2d, mat3, vec2} from 'linearly'
 
 import * as Patterns from '@/utils/patterns'
@@ -94,6 +94,10 @@ export function useZUI(element: Ref<HTMLElement | null>) {
 		'gesturechange' as 'wheel',
 		event => {
 			event.preventDefault()
+			// On iOS these fire alongside the touch pointer events that already
+			// drive the pinch below; only trust them when no touch is down
+			// (i.e. a desktop Safari trackpad).
+			if (pointers.size > 0) return
 			const {scale, clientX, clientY} = event as unknown as SafariGestureEvent
 			zoomBy(scale / lastGestureScale, clientX, clientY)
 			lastGestureScale = scale
@@ -101,14 +105,26 @@ export function useZUI(element: Ref<HTMLElement | null>) {
 		{passive: false}
 	)
 
-	// ドラッグで平行移動
+	// ドラッグで平行移動、2 本指でピンチズーム
 	// A press only becomes a drag after the pointer travels past
 	// TAP_THRESHOLD px; shorter presses fire the tap handlers instead.
 	const TAP_THRESHOLD = 8
 
-	let prev: vec2 | null = null
+	// Every active pointer, keyed by pointerId, in client pixels. One pointer
+	// pans; the first two drive a pinch (pan by their midpoint, zoom by their
+	// distance). Keeping them in one map is the point — the old single `prev`
+	// variable was overwritten by both fingers in turn, which is what made
+	// two-finger touches jump around.
+	const pointers = new Map<number, vec2>()
 	let downPos: vec2 | null = null
 	let dragging = false
+	let multiTouched = false
+
+	// Pan velocity in normalized units per ms, smoothed while the pointer
+	// moves; released as a glide (momentum) on pointerup.
+	let velocity: vec2 = vec2.zero
+	let lastMoveAt = 0
+	let glide: vec2 | null = null
 
 	type TapHandler = (clientX: number, clientY: number) => void
 	const tapHandlers: TapHandler[] = []
@@ -118,16 +134,55 @@ export function useZUI(element: Ref<HTMLElement | null>) {
 	}
 
 	useEventListener(element, 'pointerdown', event => {
-		// capture pointer
-		;(event.target as HTMLElement).setPointerCapture(event.pointerId)
-		prev = [event.clientX, event.clientY]
-		downPos = prev
-		dragging = false
+		try {
+			element.value?.setPointerCapture(event.pointerId)
+		} catch {
+			// An already-released (or synthetic) pointer cannot be captured
+		}
+		pointers.set(event.pointerId, [event.clientX, event.clientY])
+		glide = null
+
+		if (pointers.size === 1) {
+			downPos = [event.clientX, event.clientY]
+			dragging = false
+			multiTouched = false
+			velocity = vec2.zero
+			lastMoveAt = event.timeStamp
+		} else {
+			// A second finger means a pinch: never a tap, never a glide,
+			// and it releases the camera from any followed target
+			multiTouched = true
+			dragging = true
+			followTarget.value = null
+		}
 	})
 
 	useEventListener(element, 'pointermove', event => {
-		if (!prev) return
+		const previous = pointers.get(event.pointerId)
+		if (!previous) return
 		const current: vec2 = [event.clientX, event.clientY]
+
+		if (pointers.size >= 2) {
+			pointers.set(event.pointerId, current)
+
+			const [idA, idB] = pointers.keys()
+			if (event.pointerId !== idA && event.pointerId !== idB) return
+
+			const other = pointers.get(event.pointerId === idA ? idB : idA)!
+			const prevMid = vec2.lerp(previous, other, 0.5)
+			const mid = vec2.lerp(current, other, 0.5)
+			const prevDist = vec2.distance(previous, other)
+			const dist = vec2.distance(current, other)
+
+			transform.value = mat2d.mul(
+				mat2d.translation(vec2.scale(vec2.sub(mid, prevMid), 2 / width.value)),
+				transform.value
+			)
+			if (prevDist > 0 && dist > 0) {
+				zoomBy(dist / prevDist, mid[0], mid[1])
+			}
+			return
+		}
 
 		if (!dragging) {
 			if (downPos && vec2.distance(current, downPos) > TAP_THRESHOLD) {
@@ -135,36 +190,93 @@ export function useZUI(element: Ref<HTMLElement | null>) {
 				// A deliberate pan releases the camera from any followed target
 				followTarget.value = null
 			} else {
-				prev = current
+				pointers.set(event.pointerId, current)
 				return
 			}
 		}
 
-		const delta = vec2.sub(current, prev)
+		const delta = vec2.sub(current, previous)
 
 		// Normalize
 		const scaledDelta = vec2.scale(delta, 2 / width.value)
 
 		transform.value = mat2d.mul(mat2d.translation(scaledDelta), transform.value)
-		prev = current
-	})
+		pointers.set(event.pointerId, current)
 
-	useEventListener(element, 'pointerup', event => {
-		if (downPos && !dragging) {
-			tapHandlers.forEach(handler => handler(event.clientX, event.clientY))
+		const dt = event.timeStamp - lastMoveAt
+		if (dt > 0) {
+			// Exponential smoothing over ~50ms, so the glide picks up the
+			// speed of the last few frames rather than one noisy event
+			const k = 1 - Math.exp(-dt / 50)
+			velocity = vec2.lerp(velocity, vec2.scale(scaledDelta, 1 / dt), k)
+			lastMoveAt = event.timeStamp
 		}
-		prev = null
-		downPos = null
 	})
 
-	function onPointerUp() {
-		prev = null
+	function releasePointer(event: PointerEvent, canTap: boolean) {
+		if (!pointers.delete(event.pointerId)) return
+		// When a pinch drops to one finger, that finger keeps panning
+		if (pointers.size > 0) return
+
+		if (canTap && downPos && !dragging && !multiTouched) {
+			tapHandlers.forEach(handler => handler(event.clientX, event.clientY))
+		} else if (dragging && !multiTouched) {
+			// A flick keeps gliding — unless the finger had already paused
+			const paused = event.timeStamp - lastMoveAt > 100
+			const pxPerMs = (vec2.len(velocity) * width.value) / 2
+			if (!paused && pxPerMs > 0.05) glide = velocity
+		}
+
 		downPos = null
+		dragging = false
 	}
 
-	useEventListener(element, 'pointercancel', onPointerUp)
-	useEventListener(element, 'pointerout', onPointerUp)
-	useEventListener(element, 'pointerleave', onPointerUp)
+	useEventListener(element, 'pointerup', event => releasePointer(event, true))
+	useEventListener(element, 'pointercancel', e => releasePointer(e, false))
+	useEventListener(element, 'pointerout', e => releasePointer(e, false))
+	useEventListener(element, 'pointerleave', e => releasePointer(e, false))
+
+	// Momentum: keep panning after a flick, with exponential friction.
+	// Advanced from the same pre-draw callback as the follow (syncCamera),
+	// not a rAF of our own, for the same atomicity reason as below.
+	let lastGlideAt: number | null = null
+
+	function syncGlide() {
+		if (!glide) {
+			lastGlideAt = null
+			return
+		}
+		if (followTarget.value) {
+			// The follow owns the camera
+			glide = null
+			return
+		}
+
+		const now = performance.now()
+		const dt = lastGlideAt === null ? 1000 / 60 : now - lastGlideAt
+		lastGlideAt = now
+
+		transform.value = mat2d.mul(
+			mat2d.translation(vec2.scale(glide, dt)),
+			transform.value
+		)
+
+		glide = vec2.scale(glide, Math.exp(-dt / 280))
+		if ((vec2.len(glide) * width.value) / 2 < 0.005) glide = null
+	}
+
+	// Convert a pattern-space position to a screen position (clientX/Y)
+	function worldToScreen(v: vec2): vec2 {
+		const el = element.value
+		if (!el) return vec2.zero
+
+		const rect = el.getBoundingClientRect()
+		const norm = vec2.transformMat2d(v, transform.value)
+		return [
+			norm[0] * (width.value / 2) + rect.left + rect.width / 2,
+			norm[1] * (width.value / 2) + rect.top + rect.height / 2,
+		]
+	}
 
 	// Convert a screen position (clientX/Y) to pattern-space cell coordinates
 	function screenToWorld(clientX: number, clientY: number): vec2 {
@@ -211,7 +323,13 @@ export function useZUI(element: Ref<HTMLElement | null>) {
 	 * the element's centre when null */
 	const followAnchor = ref<vec2 | null>(null)
 
-	useRafFn(() => {
+	// Called from the render loop, right before the frame is drawn — NOT
+	// from a rAF of our own. Two independent rAF subscriptions can land a
+	// frame apart from each other, and then every automaton step renders
+	// once with the dancer in the new cell but the camera still on the old
+	// one — a one-frame twitch. Sampling the camera in the same callback
+	// that draws makes the two atomically consistent.
+	function syncFollow() {
 		const target = followTarget.value
 		const el = element.value
 		if (!target || !el) return
@@ -261,7 +379,14 @@ export function useZUI(element: Ref<HTMLElement | null>) {
 		if (tx === desiredTx && ty === desiredTy) return
 
 		transform.value = [a, b, c, d, desiredTx, desiredTy]
-	})
+	}
+
+	/** Advance every camera animation (flick glide, follow) — called from the
+	 * render loop right before drawing */
+	function syncCamera() {
+		syncGlide()
+		syncFollow()
+	}
 
 	/** Screen pixels per pattern cell at the current zoom */
 	const pixelsPerCell = computed(() => (transform.value[0] * width.value) / 2)
@@ -280,8 +405,10 @@ export function useZUI(element: Ref<HTMLElement | null>) {
 		inverseMatrix,
 		onTap,
 		screenToWorld,
+		worldToScreen,
 		followTarget,
 		followAnchor,
+		syncCamera,
 		pixelsPerCell,
 	}
 }

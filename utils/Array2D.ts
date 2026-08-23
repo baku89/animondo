@@ -58,6 +58,12 @@ export class Array2D<T> {
 		return this.data[_y]![_x]!
 	}
 
+	set(x: number, y: number, value: T) {
+		const _x = scalar.mod(x, this.width)
+		const _y = scalar.mod(y, this.height)
+		this.data[_y]![_x] = value
+	}
+
 	iterate(callback: (x: number, y: number, value: T) => void) {
 		for (let y = 0; y < this.height; y++) {
 			for (let x = 0; x < this.width; x++) {
@@ -73,6 +79,14 @@ export class Array2D<T> {
 			width: this.width,
 			height: this.height,
 			initialize: (x, y) => callback(x, y, this.get(x, y), this),
+		})
+	}
+
+	clone(): Array2D<T> {
+		return new Array2D({
+			width: this.width,
+			height: this.height,
+			initialize: (x, y) => this.get(x, y),
 		})
 	}
 }

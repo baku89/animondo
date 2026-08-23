@@ -32,6 +32,18 @@ export const ABOUT_SHEET: SpriteSheet = {
 	markers: {appear: 0, 'about-loop': 11, 'about-to-close': 17, 'close-loop': 24},
 }
 
+export const PADS_SHEET: SpriteSheet = {
+	url: '/animondo/icons/circle-icon_pads.webp',
+	frames: 37,
+	columns: 7,
+	markers: {
+		appear: 0,
+		'fixed-loop': 8,
+		'fixed-to-close': 28,
+		'close-loop': 33,
+	},
+}
+
 export const PLAY_SHEET: SpriteSheet = {
 	url: '/animondo/icons/circle-icon_play.webp',
 	frames: 18,

@@ -1,6 +1,10 @@
 <template>
-	<button
+	<component
+		:is="href ? 'a' : 'button'"
 		class="circle-icon"
+		:href="href"
+		:target="href ? '_blank' : undefined"
+		:rel="href ? 'noopener' : undefined"
 		:style="{width: size, height: size}"
 		:aria-label="label"
 		:title="label"
@@ -9,7 +13,7 @@
 		@click="$emit('click')"
 	>
 		<canvas ref="surface" class="circle-icon__surface" aria-hidden="true" />
-	</button>
+	</component>
 </template>
 
 <script setup lang="ts">
@@ -28,8 +32,10 @@ const props = withDefaults(
 		leaving?: boolean
 		/** Any CSS length. The ink fills its frame, so this is the circle. */
 		size?: string
+		/** Set to make the icon a link out of the site rather than a button */
+		href?: string
 	}>(),
-	{leaving: false, size: '3rem'}
+	{leaving: false, size: '3rem', href: undefined}
 )
 
 const emit = defineEmits<{(e: 'click' | 'left'): void}>()
@@ -120,6 +126,7 @@ onMounted(() => {
 
 <style lang="stylus">
 .circle-icon
+	display block
 	width 2.5rem
 	height 2.5rem
 	padding 0
