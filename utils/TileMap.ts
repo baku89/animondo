@@ -17,6 +17,13 @@ interface TileMapOptions {
 
 const HonamiIndex = 5
 
+// prettier-ignore
+const NEIGHBOURS_8: readonly [number, number][] = [
+	[-1, -1], [0, -1], [1, -1],
+	[-1, 0], [1, 0],
+	[-1, 1], [0, 1], [1, 1],
+]
+
 // 2つのパターンがつながるようなパターンを作る
 function interpolateMovePattens(
 	pattern1: MovePattern,
@@ -76,8 +83,11 @@ export class TileMap {
 
 		// The initial fill is what the very FIRST births show — the opening
 		// bridge reads it before any step runs — so it obeys the same rules
-		// as later births: even counts, no two alike side by side, toroidal
-		// seams included.
+		// as later births and then some: even counts, and no two alike
+		// touching even diagonally, toroidal seams included. Diagonals
+		// matter here because the opening's first ring is this fill's
+		// centre 2x2 — a diagonal twin put two of the same dancer among
+		// the first four on stage.
 		if (this.#generateTileInfo) {
 			this.#tileInfo = new Array2D({
 				width: this.width,
@@ -89,11 +99,15 @@ export class TileMap {
 			const filled: number[] = []
 			for (let y = 0; y < this.height; y++) {
 				for (let x = 0; x < this.width; x++) {
+					// Every already-placed toroidal neighbour, diagonals
+					// included (cells not yet dealt simply aren't in `filled`)
 					const beside = new Set<number>()
-					if (x > 0) beside.add(filled[y * this.width + x - 1]!)
-					if (y > 0) beside.add(filled[(y - 1) * this.width + x]!)
-					if (x === this.width - 1) beside.add(filled[y * this.width]!)
-					if (y === this.height - 1) beside.add(filled[x]!)
+					for (const [dx, dy] of NEIGHBOURS_8) {
+						const nx = (x + dx + this.width) % this.width
+						const ny = (y + dy + this.height) % this.height
+						const already = filled[ny * this.width + nx]
+						if (already !== undefined) beside.add(already)
+					}
 					const index = this.#choose(counts, beside)
 					counts[index]!++
 					filled.push(index)

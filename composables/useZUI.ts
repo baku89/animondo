@@ -8,18 +8,25 @@ import * as Patterns from '@/utils/patterns'
 const OPENING_CELLS = 8
 
 export function useZUI(element: Ref<HTMLElement | null>) {
-	const openingScale = (2 * Patterns.size.width) / OPENING_CELLS
+	const {width, height} = useElementSize(element)
 
-	const transform = ref(
-		mat2d.mul(
-			mat2d.scaling(openingScale),
-
+	// The centred view with this many cells across the short side — the
+	// opening's framing, and the dolly's rail. Before the element is
+	// measured it assumes portrait (short side = width).
+	function centredTransform(cells: number) {
+		const scale = (2 * Patterns.size.width) / cells
+		const aspect =
+			width.value && height.value
+				? Math.min(width.value, height.value) / width.value
+				: 1
+		return mat2d.mul(
+			mat2d.scaling(scale * aspect),
 			mat2d.translation(-0.5),
 			mat2d.scaling(1 / Patterns.size.width)
 		)
-	)
+	}
 
-	const {width, height} = useElementSize(element)
+	const transform = ref(centredTransform(OPENING_CELLS))
 
 	// The static default above assumes portrait; once the element is
 	// measured, correct for landscape, where the short side is the height.
@@ -27,12 +34,15 @@ export function useZUI(element: Ref<HTMLElement | null>) {
 	watch([width, height], ([w, h]) => {
 		if (zoomInitialized || !w || !h) return
 		zoomInitialized = true
-		transform.value = mat2d.mul(
-			mat2d.scaling((openingScale * Math.min(w, h)) / w),
-			mat2d.translation(-0.5),
-			mat2d.scaling(1 / Patterns.size.width)
-		)
+		transform.value = centredTransform(OPENING_CELLS)
 	})
+
+	/** Point the camera at the centred view with this many cells across the
+	 * short side — the opening dolly drives this every frame. Overwrites
+	 * whatever the transform holds, so only for while the stage is locked. */
+	function setOpeningCells(cells: number) {
+		transform.value = centredTransform(cells)
+	}
 
 	// Zoom about a screen position (clientX/Y), clamping the scale
 	function zoomBy(delta: number, clientX: number, clientY: number) {
@@ -301,10 +311,13 @@ export function useZUI(element: Ref<HTMLElement | null>) {
 		]
 	}
 
-	// Convert a screen position (clientX/Y) to pattern-space cell coordinates
+	// Convert a screen position (clientX/Y) to pattern-space cell coordinates.
+	// An unmeasured element (width 0 — display:none, or the first frames of a
+	// remote load) would divide into Infinity and NaN every cell index
+	// downstream; answer from the origin instead of poisoning the automaton.
 	function screenToWorld(clientX: number, clientY: number): vec2 {
 		const el = element.value
-		if (!el) return vec2.zero
+		if (!el || !width.value) return vec2.zero
 
 		const rect = el.getBoundingClientRect()
 		const norm: vec2 = vec2.scale(
@@ -433,6 +446,7 @@ export function useZUI(element: Ref<HTMLElement | null>) {
 		followTarget,
 		followAnchor,
 		syncCamera,
+		setOpeningCells,
 		pixelsPerCell,
 	}
 }
