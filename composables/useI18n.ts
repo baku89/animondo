@@ -8,7 +8,7 @@ const messages = {
 		'about.button.label': 'About this project',
 		'about.title': 'About Animondo',
 		'about.body':
-			'Animondo is an animated bon-odori (a Japanese summer folk dance) born from the Osaka Expo 2025 EU–Japan Animation Residency. Hand-drawn characters by the residency artists dance together to the rhythm of Kawachi Ondo. It was made as a memento of nearly a month of exchange.',
+			'Animondo is an animated Kawachi-ondo (a Japanese summer folk dance) born from the Osaka Expo 2025 EU–Japan Animation Residency. Hand-drawn characters by the residency artists dance together to its rhythm. It was made as a memento of nearly a month of exchange.',
 		'about.artists.label': 'Residency artists',
 		'about.artists.list':
 			'Baku Hashimoto · Edmunds Jansons · Honami Yano · Laura Gonçalves · Lucija Mrzljak · Masa Kudo · Noémie Marsily · Sander Joon · Shinobu Soejima · Sumito Sakakibara',
