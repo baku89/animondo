@@ -202,7 +202,7 @@
 </template>
 
 <script setup lang="ts">
-import {useIntervalFn, useMediaQuery} from '@vueuse/core'
+import {onKeyStroke, useIntervalFn, useMediaQuery} from '@vueuse/core'
 
 import {PADS} from '~/composables/usePatternControl'
 
@@ -218,7 +218,12 @@ const props = defineProps<{
 	beatSeq: number
 }>()
 
-defineEmits<{(e: 'tap', id: string): void; (e: 'close'): void}>()
+const emit = defineEmits<{(e: 'tap', id: string): void; (e: 'close'): void}>()
+
+// Esc leaves pads mode, the same key that closes the About panel
+onKeyStroke('Escape', () => {
+	if (props.open) emit('close')
+})
 
 const root = useTemplateRef<HTMLElement>('root')
 
