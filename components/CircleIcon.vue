@@ -5,11 +5,11 @@
 		:href="href"
 		:target="href ? '_blank' : undefined"
 		:rel="href ? 'noopener' : undefined"
-		:style="{width: size, height: size}"
+		:style="{width: aspect === 1 ? size : `calc(${size} * ${aspect})`, height: size}"
 		:aria-label="label"
 		:title="label"
-		@pointerenter="outline.setState('hover')"
-		@pointerleave="outline.setState('fixed')"
+		@pointerenter="ownHover = true"
+		@pointerleave="ownHover = false"
 		@click="$emit('click')"
 	>
 		<canvas ref="surface" class="circle-icon__surface" aria-hidden="true" />
@@ -34,8 +34,22 @@ const props = withDefaults(
 		size?: string
 		/** Set to make the icon a link out of the site rather than a button */
 		href?: string
+		/** The frame drawn behind the glyph; the round one unless told otherwise */
+		outline?: SpriteSheet
+		/** The outline's cell aspect (w/h); widens the box past `size` */
+		aspect?: number
+		/** Externally-driven hover — a caption beside the icon being pointed
+		 * at should light the icon up too */
+		hover?: boolean
 	}>(),
-	{leaving: false, size: '3rem', href: undefined}
+	{
+		leaving: false,
+		size: '3rem',
+		href: undefined,
+		outline: undefined,
+		aspect: 1,
+		hover: false,
+	}
 )
 
 const emit = defineEmits<{(e: 'click' | 'left'): void}>()
@@ -43,7 +57,8 @@ const emit = defineEmits<{(e: 'click' | 'left'): void}>()
 const surface = useTemplateRef<HTMLCanvasElement>('surface')
 const {width, height} = useElementSize(surface)
 
-const outline = createSpritePlayer(OUTLINE_SHEET, 'fixed')
+const outlineSheet = props.outline ?? OUTLINE_SHEET
+const outlinePlayer = createSpritePlayer(outlineSheet, 'fixed')
 const glyph = createSpritePlayer(props.glyph, props.state)
 
 const sheets = ref<Map<string, HTMLImageElement>>(new Map())
@@ -51,6 +66,14 @@ const sheets = ref<Map<string, HTMLImageElement>>(new Map())
 watch(
 	() => props.state,
 	next => glyph.setState(next)
+)
+
+// The outline's hover follows the pointer on the icon itself OR the
+// borrowed hover from a companion caption link (the `hover` prop)
+const ownHover = ref(false)
+watch(
+	computed(() => ownHover.value || props.hover),
+	hovered => outlinePlayer.setState(hovered ? 'hover' : 'fixed')
 )
 
 function draw() {
@@ -70,22 +93,30 @@ function draw() {
 	context.imageSmoothingEnabled = true
 	context.imageSmoothingQuality = 'high'
 
-	// Outline first, then the glyph sitting inside it
-	for (const player of [outline, glyph]) {
+	// Outline first, then the glyph sitting inside it. Each layer is
+	// contain-fit and centred from its own cell size, so a square glyph
+	// still lands in the middle of a wide outline (the YouTube frame).
+	for (const player of [outlinePlayer, glyph]) {
 		const image = sheets.value.get(player.sheet.url)
 		if (!image) continue
 
-		const cell = image.width / player.sheet.columns
+		const columns = player.sheet.columns
+		const rows = Math.ceil(player.sheet.frames / columns)
+		const cellWidth = image.width / columns
+		const cellHeight = image.height / rows
+		const scale = Math.min(w / cellWidth, h / cellHeight)
+		const drawWidth = cellWidth * scale
+		const drawHeight = cellHeight * scale
 		context.drawImage(
 			image,
-			(player.frame % player.sheet.columns) * cell,
-			Math.floor(player.frame / player.sheet.columns) * cell,
-			cell,
-			cell,
-			0,
-			0,
-			w,
-			h
+			(player.frame % columns) * cellWidth,
+			Math.floor(player.frame / columns) * cellHeight,
+			cellWidth,
+			cellHeight,
+			(w - drawWidth) / 2,
+			(h - drawHeight) / 2,
+			drawWidth,
+			drawHeight
 		)
 	}
 }
@@ -97,24 +128,24 @@ useIntervalFn(() => {
 	// true when this mounts still starts the exit.
 	if (props.leaving && !dismissed) {
 		dismissed = true
-		outline.dismiss()
+		outlinePlayer.dismiss()
 		glyph.dismiss()
 	}
 
-	outline.tick()
+	outlinePlayer.tick()
 	glyph.tick()
 	draw()
 
 	// Both layers have to finish before the icon may be taken away, or the
 	// slower one is cut off mid-stroke.
-	if (dismissed && outline.done && glyph.done) emit('left')
+	if (dismissed && outlinePlayer.done && glyph.done) emit('left')
 }, 1000 / 12)
 
 // Redraw on resize even while a loop is between ticks
 watchEffect(draw)
 
 onMounted(() => {
-	for (const sheet of [OUTLINE_SHEET, props.glyph]) {
+	for (const sheet of [outlineSheet, props.glyph]) {
 		const image = new Image()
 		image.onload = () => {
 			sheets.value = new Map(sheets.value).set(sheet.url, image)

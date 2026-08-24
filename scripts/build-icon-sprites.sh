@@ -38,3 +38,19 @@ for src in videos/circle-icon_*.mov; do
 
 	echo "$name: $frames frames, ${cols}x${rows} grid -> $(du -h "$OUT/$name.webp" | cut -f1)"
 done
+
+# The YouTube outline (the unsupported screen's play frame) is the one
+# non-square master: 1000x800, so its cells keep that 5:4 at the same 256px
+# height as the round outline's. CircleIcon contain-fits each layer, so the
+# square play glyph still lands centred inside it.
+src=videos/youtube_outline.mov
+frames=$(ffprobe -v error -select_streams v:0 \
+	-show_entries stream=nb_frames -of csv=p=0 "$src")
+cols=$(python3 -c "import math;print(math.ceil(math.sqrt($frames)))")
+rows=$(python3 -c "import math;print(math.ceil($frames / $cols))")
+
+ffmpeg -v error -i "$src" -vf \
+	"format=rgba,premultiply=inplace=1,scale=$((CELL * 5 / 4)):$CELL:flags=lanczos,unpremultiply=inplace=1,tile=${cols}x${rows}" \
+	-frames:v 1 -c:v libwebp -lossless 1 -y "$OUT/youtube_outline.webp"
+
+echo "youtube_outline: $frames frames, ${cols}x${rows} grid -> $(du -h "$OUT/youtube_outline.webp" | cut -f1)"

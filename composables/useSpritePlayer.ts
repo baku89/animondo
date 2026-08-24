@@ -25,6 +25,17 @@ export const OUTLINE_SHEET: SpriteSheet = {
 	markers: {appear: 0, 'fixed-loop': 11, 'fixed-to-hover': 17, 'hover-loop': 19},
 }
 
+// The YouTube frame for the unsupported screen: the round outline's shape
+// swapped for a 5:4 rounded box, same 25 frames on the same markers. The
+// one non-square sheet — CircleIcon contain-fits it (and takes its aspect
+// as a prop).
+export const YOUTUBE_SHEET: SpriteSheet = {
+	url: '/animondo/icons/youtube_outline.webp',
+	frames: 25,
+	columns: 5,
+	markers: {appear: 0, 'fixed-loop': 11, 'fixed-to-hover': 17, 'hover-loop': 19},
+}
+
 export const ABOUT_SHEET: SpriteSheet = {
 	url: '/animondo/icons/circle-icon_about.webp',
 	frames: 30,
