@@ -1280,7 +1280,7 @@ useRafFn(() => {
 // compare candidates without an edit.
 const searchParams = new URLSearchParams(location.search)
 const offsetParam = Number(searchParams.get('offset') ?? NaN)
-const FRAME_OFFSET = Number.isFinite(offsetParam) ? offsetParam : -2
+const FRAME_OFFSET = Number.isFinite(offsetParam) ? offsetParam : -1.6
 
 // One frame-slot: an eighth of the average tapped beat. The grid sways a
 // few ms around it, less than anyone can hear at a quarter-beat shift.
