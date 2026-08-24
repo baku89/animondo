@@ -13,43 +13,74 @@ import {ARTISTS} from './artists'
 const frames = (base: string, count: number) =>
 	Array.from({length: count}, (_, i) => `${base}_${i}.webp`)
 
-const localized = (base: string, count: number) =>
-	(['en', 'ja'] as const).flatMap(lang => frames(`${base}_${lang}`, count))
+/** One sheet per language — the boils page these by background-position */
+const localized = (base: string) =>
+	(['en', 'ja'] as const).map(lang => `${base}_${lang}.webp`)
 
 /** The artist sprites — fetched here, decoded by the renderer */
 export const SPRITE_URLS = ARTISTS.map(({id}) => `/animondo/sprites/${id}.mp4`)
 
 export const PRELOAD_URLS: string[] = [
-	// The speech bubble's hand-drawn set (frame, fills, tail, controls)
+	// The speech bubble's hand-drawn set: the frame family stays as single
+	// frames (border-image cannot page a sheet; those boils are stacked
+	// layers), the rest are position-paged sheets
 	...[
 		'frame',
 		'frame-ink',
-		'ink-orange',
 		'fill-white',
-		'fill-orange',
-		'tail',
-		'close',
-		'web',
-		'thumb-mask',
+		// The pads' colour families — keep in step with FAMILY_INK in
+		// PatternLaunchpad.vue and scripts/build-bubble-frames.sh
+		...[
+			'blue',
+			'sky',
+			'mint',
+			'green',
+			'forest',
+			'pink',
+			'tangerine',
+			'yellow',
+		].flatMap(family => [`ink-${family}`, `fill-${family}`]),
 	].flatMap(name => frames(`/animondo/bubble/${name}`, 4)),
+	...['tail', 'close', 'web', 'thumb-mask'].map(
+		name => `/animondo/bubble/${name}.webp`
+	),
 	// Tooltips: the balloon and its localized labels
-	...frames('/animondo/tooltip/bubble', 8),
-	...localized('/animondo/tooltip/sound-on', 4),
-	...localized('/animondo/tooltip/explore_pc', 4),
-	...localized('/animondo/tooltip/explore_mobile', 4),
-	...localized('/animondo/tooltip/click-me', 4),
-	...localized('/animondo/tooltip/tap-me', 4),
+	'/animondo/tooltip/bubble.webp',
+	...localized('/animondo/tooltip/sound-on'),
+	...localized('/animondo/tooltip/sound-off'),
+	...localized('/animondo/tooltip/about'),
+	...localized('/animondo/tooltip/pads'),
+	...localized('/animondo/tooltip/explore_pc'),
+	...localized('/animondo/tooltip/explore_mobile'),
+	...localized('/animondo/tooltip/click-me'),
+	...localized('/animondo/tooltip/tap-me'),
 	// The title screen's play hint
-	...localized('/animondo/label/click-to-play', 4),
-	...localized('/animondo/label/tap-to-play', 4),
+	...localized('/animondo/label/click-to-play'),
+	...localized('/animondo/label/tap-to-play'),
 	// The language switch
-	...frames('/animondo/lang/circle', 8),
-	...frames('/animondo/lang/en', 4),
-	...frames('/animondo/lang/ja', 4),
+	'/animondo/lang/circle.webp',
+	'/animondo/lang/en.webp',
+	'/animondo/lang/ja.webp',
 	// The round buttons
 	...['about', 'outline', 'pads', 'play', 'sound'].map(
 		name => `/animondo/icons/circle-icon_${name}.webp`
 	),
+	// The pads' animated icons (12F sheets; several pads reuse one rotated,
+	// and the inverted faces play their drawn duals — gather, pinch)
+	...[
+		'clockwise',
+		'down',
+		'gather',
+		'hilbert',
+		'lane-vertical',
+		'pinch',
+		'scatter',
+		'shuffle',
+		'spin',
+		'spread-horizontal',
+		'wave',
+		'zigzag',
+	].map(name => `/animondo/pad-icons/${name}.webp`),
 	// The representative works in the profile bubbles
 	...ARTISTS.map(({id}) => `/animondo/works/${id}.webp`),
 	'/animondo/fade-mask.webp',

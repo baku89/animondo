@@ -19,16 +19,25 @@
 				recording instead of to the piece: the play glyph centred in
 				the hand-drawn YouTube frame (5:4, so the box widens past
 				`size`). -->
-			<div v-if="unsupported" class="title-sequence__offsite">
+			<div
+				v-if="unsupported"
+				class="title-sequence__offsite"
+				:class="{'title-sequence__offsite--hover': linkHover}"
+			>
+				<!-- Hover runs both ways: pointing at either the icon or the
+					caption re-inks the pair in YouTube's red -->
 				<CircleIcon
 					:glyph="PLAY_SHEET"
 					:outline="YOUTUBE_SHEET"
 					:aspect="1000 / 800"
-					size="clamp(3.5rem, 14vw, 8rem)"
+					size="clamp(4.5rem, 17vw, 7rem)"
 					state="fixed"
 					:label="t('tap.youtube')"
 					:href="YOUTUBE_URL"
 					:hover="linkHover"
+					:tint="YOUTUBE_RED"
+					@pointerenter="linkHover = true"
+					@pointerleave="linkHover = false"
 				/>
 				<!-- Pointing at the caption lights the icon up too -->
 				<a
@@ -46,7 +55,7 @@
 				v-else-if="ready && playPresent"
 				class="title-sequence__start"
 				:glyph="PLAY_SHEET"
-				size="clamp(3.5rem, 14vw, 8rem)"
+				size="clamp(4.5rem, 17vw, 7rem)"
 				state="fixed"
 				:label="t('tap.title')"
 				:leaving="started"
@@ -119,26 +128,26 @@ watch(
 // first thing on screen, ahead of the manifest they narrate.
 useHead(() => ({
 	link: [
-		...[0, 1, 2, 3].flatMap(i =>
-			(['en', 'ja'] as const).map(lang => ({
-				rel: 'preload',
-				as: 'image' as const,
-				href: `/animondo/label/${
-					isCoarsePointer.value ? 'tap' : 'click'
-				}-to-play_${lang}_${i}.webp`,
-			}))
-		),
-		...[0, 1, 2, 3, 4, 5, 6, 7, 8].map(i => ({
+		...(['en', 'ja'] as const).map(lang => ({
 			rel: 'preload',
 			as: 'image' as const,
-			href: `/animondo/loading/loading_${i}.webp`,
+			href: `/animondo/label/${
+				isCoarsePointer.value ? 'tap' : 'click'
+			}-to-play_${lang}.webp`,
 		})),
+		{
+			rel: 'preload',
+			as: 'image' as const,
+			href: '/animondo/loading/loading.webp',
+		},
 	],
 }))
 
 const started = ref(false)
-// The caption link under the YouTube icon, mirrored into the icon's hover
+// One hover for the pair: the caption link and the YouTube icon light
+// each other up, both taking the brand's red
 const linkHover = ref(false)
+const YOUTUBE_RED = '#ff0000'
 // Kept mounted after the tap so the drawn exit can play itself out
 const playPresent = ref(true)
 
@@ -187,16 +196,18 @@ useEventListener('keydown', (event: KeyboardEvent) => {
 	&--unsupported
 		cursor default
 
-	// Fixed top-centre, the same berth the About panel gives its switch —
-	// the corners belong to the round buttons. The words size in em, so the
-	// font-size is the 80% scale.
+	// Fixed top-right: the loading screen's right corner is free (the sound
+	// toggle holds the left, the ? only arrives with the piece). Vertically
+	// centred on the round buttons' line (their top 1rem + half their clamp
+	// height), so switch and sound toggle share one axis. The words size in
+	// em, so the font-size is the scale — 120% of the old 0.8rem.
 	&__lang
 		position fixed
-		top 2rem
-		left 50%
-		transform translateX(-50%)
+		top calc(1rem + clamp(4rem, 15vw, 6rem) / 2)
+		right 2rem
+		transform translateY(-50%)
 		cursor default
-		font-size 0.8rem
+		font-size 0.96rem
 
 	// The moment the play tap lands the switch is out of a job: a three-step
 	// fade on the 12 fps grid, like everything else drawn here
@@ -212,22 +223,22 @@ useEventListener('keydown', (event: KeyboardEvent) => {
 
 	&__start
 		position absolute
-		top calc(100% + 2rem)
+		top calc(100% + 3rem)
 		left 50%
 		translate -50% 0
 
 	// The wait, drawn: the dots boil where the play button will land
-	// (326x232, 12 fps, 9F loop — scripts/build-loading-frames.sh).
-	// Centred on the coming button's own centre (its top + half its clamp
-	// height), so the handover doesn't hop.
+	// (326x232, 12 fps, 9F sheet paged by background-position —
+	// scripts/build-loading-frames.sh). Centred on the coming button's own
+	// centre (its top + half its clamp height), so the handover doesn't hop.
 	&__loading
 		position absolute
-		top calc(100% + 2rem + clamp(3.5rem, 14vw, 8rem) / 2)
+		top calc(100% + 3rem + clamp(4.5rem, 17vw, 7rem) / 2)
 		left 50%
 		translate -50% -50%
 		width clamp(3.5rem, 12vw, 5rem)
 		aspect-ratio 326 / 232
-		background center / contain no-repeat
+		background url('/animondo/loading/loading.webp') 0 0 / 900% 100% no-repeat
 		animation title-loading-boil 0.75s steps(1) infinite
 		pointer-events none
 
@@ -236,24 +247,26 @@ useEventListener('keydown', (event: KeyboardEvent) => {
 	// near the tooltip's, and dimmed: it whispers what the button already is.
 	&__hint
 		position absolute
-		top calc(100% + 2rem + clamp(3.5rem, 14vw, 8rem) + 1rem)
+		top calc(100% + 3rem + clamp(4.5rem, 17vw, 7rem) + 0.25rem)
 		left 50%
 		translate -50% 0
-		width clamp(5rem, 20vw, 6.5rem)
+		width clamp(6.5rem, 26vw, 8.45rem)
 		aspect-ratio 387 / 122
 		opacity 0.55
 		pointer-events none
-		background center / contain no-repeat
-		animation title-hint-click-en 0.3333s steps(1) infinite
+		// A 4F sheet paged by background-position; the variants differ only
+		// by which sheet they page
+		background url('/animondo/label/click-to-play_en.webp') 0 0 / 400% 100% no-repeat
+		animation title-hint-boil 0.3333s steps(1) infinite
 
 		&--click-ja
-			animation-name title-hint-click-ja
+			background-image url('/animondo/label/click-to-play_ja.webp')
 
 		&--tap-en
-			animation-name title-hint-tap-en
+			background-image url('/animondo/label/tap-to-play_en.webp')
 
 		&--tap-ja
-			animation-name title-hint-tap-ja
+			background-image url('/animondo/label/tap-to-play_ja.webp')
 
 	// The tap has landed; the hint bows out on the same 12 fps grid
 	&--started &__hint
@@ -279,6 +292,12 @@ useEventListener('keydown', (event: KeyboardEvent) => {
 			&:hover
 				text-decoration underline
 
+	// The pair's shared hover (set from either end): the caption takes
+	// YouTube's red along with the icon's re-inked frame
+	&__offsite--hover a
+		color #ff0000
+		text-decoration underline
+
 		p
 			font-size 0.85rem
 			opacity 0.6
@@ -297,61 +316,31 @@ useEventListener('keydown', (event: KeyboardEvent) => {
 
 @keyframes title-loading-boil
 	0%
-		background-image url('/animondo/loading/loading_0.webp')
+		background-position 0% 0
 	11.111%
-		background-image url('/animondo/loading/loading_1.webp')
+		background-position 12.5% 0
 	22.222%
-		background-image url('/animondo/loading/loading_2.webp')
+		background-position 25% 0
 	33.333%
-		background-image url('/animondo/loading/loading_3.webp')
+		background-position 37.5% 0
 	44.444%
-		background-image url('/animondo/loading/loading_4.webp')
+		background-position 50% 0
 	55.556%
-		background-image url('/animondo/loading/loading_5.webp')
+		background-position 62.5% 0
 	66.667%
-		background-image url('/animondo/loading/loading_6.webp')
+		background-position 75% 0
 	77.778%
-		background-image url('/animondo/loading/loading_7.webp')
+		background-position 87.5% 0
 	88.889%
-		background-image url('/animondo/loading/loading_8.webp')
+		background-position 100% 0
 
-@keyframes title-hint-click-en
+@keyframes title-hint-boil
 	0%
-		background-image url('/animondo/label/click-to-play_en_0.webp')
+		background-position 0% 0
 	25%
-		background-image url('/animondo/label/click-to-play_en_1.webp')
+		background-position 33.3333% 0
 	50%
-		background-image url('/animondo/label/click-to-play_en_2.webp')
+		background-position 66.6667% 0
 	75%
-		background-image url('/animondo/label/click-to-play_en_3.webp')
-
-@keyframes title-hint-click-ja
-	0%
-		background-image url('/animondo/label/click-to-play_ja_0.webp')
-	25%
-		background-image url('/animondo/label/click-to-play_ja_1.webp')
-	50%
-		background-image url('/animondo/label/click-to-play_ja_2.webp')
-	75%
-		background-image url('/animondo/label/click-to-play_ja_3.webp')
-
-@keyframes title-hint-tap-en
-	0%
-		background-image url('/animondo/label/tap-to-play_en_0.webp')
-	25%
-		background-image url('/animondo/label/tap-to-play_en_1.webp')
-	50%
-		background-image url('/animondo/label/tap-to-play_en_2.webp')
-	75%
-		background-image url('/animondo/label/tap-to-play_en_3.webp')
-
-@keyframes title-hint-tap-ja
-	0%
-		background-image url('/animondo/label/tap-to-play_ja_0.webp')
-	25%
-		background-image url('/animondo/label/tap-to-play_ja_1.webp')
-	50%
-		background-image url('/animondo/label/tap-to-play_ja_2.webp')
-	75%
-		background-image url('/animondo/label/tap-to-play_ja_3.webp')
+		background-position 100% 0
 </style>

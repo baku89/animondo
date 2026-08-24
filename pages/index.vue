@@ -11,7 +11,7 @@
 			v-if="aboutVisible && aboutButtonShown"
 			class="about-button"
 			:glyph="ABOUT_SHEET"
-			size="clamp(4rem, 15vw, 6rem)"
+			size="clamp(4.5rem, 17vw, 7rem)"
 			:state="aboutOpen ? 'close' : 'about'"
 			:label="aboutOpen ? t('about.close') : t('about.button.label')"
 			:leaving="launchpadOpen"
@@ -22,17 +22,38 @@
 			v-if="soundVisible && soundButtonShown"
 			class="sound-button"
 			:glyph="SOUND_SHEET"
-			size="clamp(4rem, 15vw, 6rem)"
+			size="clamp(4.5rem, 17vw, 7rem)"
 			:state="audio.muted.value ? 'mute' : 'unmute'"
 			:label="audio.muted.value ? t('sound.unmute') : t('sound.mute')"
 			:leaving="launchpadOpen"
-			@click="audio.toggleMuted"
+			@click="toggleSound"
 			@left="soundButtonShown = false"
 		/>
-		<SoundTooltip
+		<NudgeTooltip
 			v-if="soundTipVisible"
+			corner="top-left"
+			:message="
+				t(soundTipLabel === 'sound-off' ? 'sound.muted.notice' : 'sound.notice')
+			"
+			:label="soundTipLabel"
 			:leaving="soundTipLeaving"
-			@left="soundTipVisible = false"
+			@left="onSoundTipLeft"
+		/>
+		<NudgeTooltip
+			v-if="aboutTipVisible"
+			corner="top-right"
+			:message="t('about.notice')"
+			label="about"
+			:leaving="aboutTipLeaving"
+			@left="onAboutTipLeft"
+		/>
+		<NudgeTooltip
+			v-if="padsTipVisible"
+			corner="bottom-left"
+			:message="t('launchpad.notice')"
+			label="pads"
+			:leaving="padsTipLeaving"
+			@left="onPadsTipLeft"
 		/>
 		<ExploreTooltip
 			v-if="exploreTip.cell && exploreTip.at"
@@ -50,24 +71,23 @@
 			v-if="launchpadButtonVisible"
 			class="launchpad-button"
 			:glyph="PADS_SHEET"
-			size="clamp(4rem, 15vw, 6rem)"
+			size="clamp(4.5rem, 17vw, 7rem)"
 			:state="launchpadOpen ? 'close' : 'fixed'"
 			:label="launchpadOpen ? t('launchpad.close') : t('launchpad.open')"
 			@click="toggleLaunchpad"
 		/>
-		<!-- The leave duration covers the pads' staggered collapse; entering
-			needs no classes, the pads' own mount animations carry it -->
-		<Transition name="launchpad" :duration="{enter: 0, leave: 500}">
-			<PatternLaunchpad
-				v-if="launchpadOpen"
-				:queued-pad="patternControl.queuedPadId.value"
-				:active-pad="patternControl.activePadId.value"
-				:activation-seq="patternControl.activationSeq.value"
-				:beat-seq="beatSeq"
-				@tap="patternControl.tapPad"
-				@close="launchpadOpen = false"
-			/>
-		</Transition>
+		<!-- Always mounted: closed it stands by invisibly, surfacing only a
+			keyboard-queued ghost; the entrance and leave waves are its own -->
+		<PatternLaunchpad
+			:open="launchpadOpen"
+			:queued-pad="patternControl.queuedPadId.value"
+			:active-pad="patternControl.activePadId.value"
+			:activation-seq="patternControl.activationSeq.value"
+			:pad-cycle="patternControl.padCycleState.value"
+			:beat-seq="beatSeq"
+			@tap="patternControl.tapPad"
+			@close="launchpadOpen = false"
+		/>
 		<AboutModal :open="aboutOpen" @close="aboutOpen = false" />
 		<canvas
 			ref="canvas"
@@ -83,6 +103,18 @@
 				:class="`profile-bubble--${bubbleSide}`"
 				:style="bubbleStyle"
 			>
+				<!-- The frame's boil as four standing layers, one opaque at a
+					time: swapping border-image sources re-rasterized and
+					flickered on cold caches, opacity does not. Each layer is
+					the whole drawing, paper fill included, behind the
+					contents. -->
+				<span
+					v-for="f in 4"
+					:key="`skin-${f}`"
+					class="profile-bubble__skin"
+					:class="`profile-bubble__skin--${f - 1}`"
+					aria-hidden="true"
+				/>
 				<!-- Hand-drawn glyphs carry the visuals; the labels stay for
 					assistive tech -->
 				<div class="profile-bubble__controls">
@@ -116,7 +148,13 @@
 							:src="selectedArtist.work.image"
 							:alt="selectedArtist.work.title[locale]"
 						/>
-						<figcaption>{{ workCaption }}</figcaption>
+						<!-- Titles lean by English convention; Japanese keeps
+							its 『』 upright — the local title mark -->
+						<figcaption v-if="locale === 'ja'">{{ workCaption }}</figcaption>
+						<figcaption v-else>
+							<i>{{ selectedArtist.work.title.en }}</i>
+							({{ selectedArtist.work.year }})
+						</figcaption>
 					</figure>
 					<!-- Markdown rendered from content/artists/, authored in this
 						repo — no third-party input reaches this sink. -->
@@ -199,12 +237,13 @@ function onTitleDone() {
 	titleVisible.value = false
 }
 
-// The sound toggle waits for the play button to have drawn itself in, then
-// arrives as its own beat rather than alongside it.
+// The sound toggle follows the play button four drawn frames behind — a
+// staggered entrance, not a separate scene (a 1.5s wait read as the
+// sound-on bubble arriving late).
 const soundVisible = ref(false)
 const {start: revealSound} = useTimeoutFn(
 	() => (soundVisible.value = true),
-	1500,
+	(4 / 12) * 1000,
 	{immediate: false}
 )
 watch(
@@ -215,18 +254,26 @@ watch(
 	{immediate: true}
 )
 
-// --- "Sound on" tooltip ---
+// --- Sound tooltip (the "Sound on" notice + the toggle's state toast) ---
 
-// A speech bubble off the sound toggle's corner, warning that the piece has
-// audio. It appears as the toggle's draw-in lands (11 frames at 12 fps,
-// overlapping the last two), stands for as long as the title screen does,
-// and leaves when the visitor starts the piece.
+// One bubble off the sound toggle's corner, worn two ways. As the toggle's
+// draw-in lands (11 frames at 12 fps, overlapping the last two) it appears
+// as a notice that the piece has audio, stands for as long as the title
+// screen does, and leaves when the visitor starts the piece. From then on,
+// every toggle brings it back for two seconds speaking the NEW state —
+// muted or sounding — with the label swapping in place if it is still up.
 const soundTipVisible = ref(false)
 const soundTipLeaving = ref(false)
+const soundTipLabel = ref<'sound-on' | 'sound-off'>('sound-on')
+
+const SOUND_TOAST_HOLD = 2000
 
 const {start: revealSoundTip} = useTimeoutFn(
 	() => {
-		if (!audio.hasStarted.value) soundTipVisible.value = true
+		if (audio.hasStarted.value) return
+		// Muted during the wait: the notice opens speaking the truth
+		soundTipLabel.value = audio.muted.value ? 'sound-off' : 'sound-on'
+		soundTipVisible.value = true
 	},
 	(9 / 12) * 1000,
 	{immediate: false}
@@ -234,6 +281,29 @@ const {start: revealSoundTip} = useTimeoutFn(
 watch(soundVisible, visible => {
 	if (visible) revealSoundTip()
 })
+
+// Only toggles arm this; the pre-start notice stands until the start
+const {start: expireSoundTip} = useTimeoutFn(
+	() => (soundTipLeaving.value = true),
+	SOUND_TOAST_HOLD,
+	{immediate: false}
+)
+
+function toggleSound() {
+	audio.toggleMuted()
+	soundTipLabel.value = audio.muted.value ? 'sound-off' : 'sound-on'
+	soundTipLeaving.value = false
+	soundTipVisible.value = true
+	// Restarted on every toggle, so a flurry ends 2s after the last one
+	expireSoundTip()
+}
+
+// A toggle mid-exit revokes the leave; the emitted `left` still arrives,
+// so only honour it while the leave stands
+function onSoundTipLeft() {
+	if (soundTipLeaving.value) soundTipVisible.value = false
+}
+
 whenever(audio.hasStarted, () => {
 	soundTipLeaving.value = true
 })
@@ -501,14 +571,14 @@ const selectedArtist = computed(() =>
 // The name in the piece's other language sits under the current one
 const otherLocale = computed(() => (locale.value === 'en' ? 'ja' : 'en'))
 
-// Title and year of the representative work, quoted the local way
+// Title and year of the representative work, quoted the Japanese way.
+// The EN caption is assembled in the template instead, so the title
+// alone can lean (the figcaption's i, below in the styles).
 const workCaption = computed(() => {
 	const artist = selectedArtist.value
 	if (!artist) return ''
 	const {title, year} = artist.work
-	return locale.value === 'ja'
-		? `『${title.ja}』（${year}）`
-		: `${title.en} (${year})`
+	return `『${title.ja}』（${year}）`
 })
 
 // How far the unwatched crowd fades toward the paper while a dancer is
@@ -541,8 +611,125 @@ const patternControl = usePatternControl(
 	() => zui.screenToWorld(window.innerWidth / 2, window.innerHeight / 2),
 	() => selection.value !== null,
 	() => launchpadOpen.value,
-	() => stageInteractive.value
+	// The keyboard sleeps until the opening hands the stage over — and
+	// while a panel owns it (the about, a focused dancer's bubble), so no
+	// ghost pad floats over what the visitor is reading
+	() => stageInteractive.value && !aboutOpen.value && selection.value === null
 )
+
+// --- Nudge tooltips ("What's this?" / "Change the dance!") ---
+
+// A relay pointing out what the visitor has not tried, alternating
+// between the ? and the pads' button until BOTH have been tried. Twenty
+// seconds after the stage unlocks the first bubble speaks (the ?'s
+// turn), holds for six seconds, and two seconds after it has gone the
+// other button takes it up — and so on, back and forth. A subject
+// already tried drops out of the rotation (both tried ends the relay
+// for good), a busy stage (an open panel, a followed dancer) holds a
+// nudge back and retries rather than talking over it, and a nudge up
+// when its subject finally gets tried plays itself out early.
+const NUDGE_LEAD = 20000
+const NUDGE_HOLD = 6000
+const NUDGE_GAP = 2000
+const NUDGE_RETRY = 1500
+
+const aboutTipVisible = ref(false)
+const aboutTipLeaving = ref(false)
+const padsTipVisible = ref(false)
+const padsTipLeaving = ref(false)
+
+// Ever-tried flags: a nudge toward something already tried never shows.
+// Any pad press counts for the pads — queuedPadId moves on both touch
+// and keyboard, so the visitor has found the instrument either way.
+const aboutEverOpened = ref(false)
+watch(aboutOpen, open => {
+	if (open) aboutEverOpened.value = true
+})
+const padsEverPlayed = ref(false)
+watch([launchpadOpen, patternControl.queuedPadId], ([open, queued]) => {
+	if (open || queued !== null) padsEverPlayed.value = true
+})
+
+// Whose turn the relay would take next; flipped as each bubble opens
+let nudgeTurn: 'about' | 'pads' = 'about'
+
+const {start: startNudges} = useTimeoutFn(speakNudge, NUDGE_LEAD, {
+	immediate: false,
+})
+const {start: queueNudge} = useTimeoutFn(speakNudge, NUDGE_GAP, {
+	immediate: false,
+})
+const {start: retryNudge} = useTimeoutFn(speakNudge, NUDGE_RETRY, {
+	immediate: false,
+})
+const {start: expireAboutNudge} = useTimeoutFn(
+	() => (aboutTipLeaving.value = true),
+	NUDGE_HOLD,
+	{immediate: false}
+)
+const {start: expirePadsNudge} = useTimeoutFn(
+	() => (padsTipLeaving.value = true),
+	NUDGE_HOLD,
+	{immediate: false}
+)
+
+function speakNudge() {
+	if (startupFailed.value) return
+	const aboutDone = aboutEverOpened.value
+	const padsDone = padsEverPlayed.value || patternControl.hasPressed()
+	// Both lessons landed: the relay's work is done
+	if (aboutDone && padsDone) return
+	if (aboutOpen.value || launchpadOpen.value || selection.value) {
+		retryNudge()
+		return
+	}
+	// Take the next turn, skipping a subject already tried
+	if (nudgeTurn === 'about' && aboutDone) nudgeTurn = 'pads'
+	if (nudgeTurn === 'pads' && padsDone) nudgeTurn = 'about'
+	if (nudgeTurn === 'about') {
+		aboutTipLeaving.value = false
+		aboutTipVisible.value = true
+		expireAboutNudge()
+	} else {
+		padsTipLeaving.value = false
+		padsTipVisible.value = true
+		expirePadsNudge()
+	}
+	nudgeTurn = nudgeTurn === 'about' ? 'pads' : 'about'
+}
+
+// Each bubble's exit hands the relay on after the gap; speakNudge ends
+// it once both subjects have been tried
+function onAboutTipLeft() {
+	aboutTipVisible.value = false
+	queueNudge()
+}
+
+function onPadsTipLeft() {
+	padsTipVisible.value = false
+	queueNudge()
+}
+
+// The clock starts when the stage is handed over (turn 5, with the
+// buttons themselves)
+watch(stageInteractive, interactive => {
+	if (interactive) startNudges()
+})
+
+// Early outs: the subject got tried, the launchpad took the screen (its
+// button plays out, so a bubble pointing at it would point at nothing),
+// or the piece failed outright
+watch([aboutEverOpened, launchpadOpen], ([opened, pads]) => {
+	if ((opened || pads) && aboutTipVisible.value) aboutTipLeaving.value = true
+})
+watch(padsEverPlayed, played => {
+	if (played && padsTipVisible.value) padsTipLeaving.value = true
+})
+watch(startupFailed, failed => {
+	if (!failed) return
+	if (aboutTipVisible.value) aboutTipLeaving.value = true
+	if (padsTipVisible.value) padsTipLeaving.value = true
+})
 
 // --- Bubble placement ---
 
@@ -555,7 +742,7 @@ const BUBBLE_BOTTOM_CLEARANCE = 24
 // Air between the character's extent and the bubble edge, in px. Scales
 // with the zoom so a zoomed-out dancer keeps the bubble snug instead of
 // floating a fixed distance away.
-const BUBBLE_GAP_MAX = 10
+const BUBBLE_GAP_MAX = 16
 const BUBBLE_MAX_WIDTH = 480
 /** Below this, a side-by-side layout is not worth the squeeze */
 const BUBBLE_MIN_WIDTH = 288
@@ -592,60 +779,63 @@ const clamp = (v: number, lo: number, hi: number) =>
 // moment it mounts, too late for a preload of its own to help.
 useHead({
 	link: [
-		...[0, 1, 2, 3].flatMap(i =>
-			['frame', 'tail', 'close', 'web', 'thumb-mask'].map(part => ({
-				rel: 'preload',
-				as: 'image' as const,
-				href: `/animondo/bubble/${part}_${i}.webp`,
-			}))
-		),
-		...[0, 1, 2, 3, 4, 5, 6, 7].map(i => ({
+		...[0, 1, 2, 3].map(i => ({
 			rel: 'preload',
 			as: 'image' as const,
-			href: `/animondo/tooltip/bubble_${i}.webp`,
+			href: `/animondo/bubble/frame_${i}.webp`,
 		})),
-		...[0, 1, 2, 3].flatMap(i =>
-			(['en', 'ja'] as const).map(lang => ({
+		...['tail', 'close', 'web', 'thumb-mask'].map(part => ({
+			rel: 'preload',
+			as: 'image' as const,
+			href: `/animondo/bubble/${part}.webp`,
+		})),
+		{
+			rel: 'preload',
+			as: 'image' as const,
+			href: '/animondo/tooltip/bubble.webp',
+		},
+		...(['en', 'ja'] as const).flatMap(lang =>
+			// sound-off rides along: the toggle can speak it from the title
+			// screen on, before the asset gate has warmed the cache
+			(['sound-on', 'sound-off'] as const).map(label => ({
 				rel: 'preload',
 				as: 'image' as const,
-				href: `/animondo/tooltip/sound-on_${lang}_${i}.webp`,
+				href: `/animondo/tooltip/${label}_${lang}.webp`,
 			}))
 		),
 	],
 })
 
 // The hint labels follow the pointer's kind, so their preload is
-// reactive — only the four frames per language this device will show
+// reactive — only the sheet per language this device will show
 useHead(() => ({
-	link: [0, 1, 2, 3].flatMap(i =>
-		(['en', 'ja'] as const).flatMap(lang => [
-			{
-				rel: 'preload',
-				as: 'image' as const,
-				href: `/animondo/tooltip/explore_${
-					isCoarsePointer.value ? 'mobile' : 'pc'
-				}_${lang}_${i}.webp`,
-			},
-			{
-				rel: 'preload',
-				as: 'image' as const,
-				href: `/animondo/tooltip/${
-					isCoarsePointer.value ? 'tap-me' : 'click-me'
-				}_${lang}_${i}.webp`,
-			},
-		])
-	),
+	link: (['en', 'ja'] as const).flatMap(lang => [
+		{
+			rel: 'preload',
+			as: 'image' as const,
+			href: `/animondo/tooltip/explore_${
+				isCoarsePointer.value ? 'mobile' : 'pc'
+			}_${lang}.webp`,
+		},
+		{
+			rel: 'preload',
+			as: 'image' as const,
+			href: `/animondo/tooltip/${
+				isCoarsePointer.value ? 'tap-me' : 'click-me'
+			}_${lang}.webp`,
+		},
+	]),
 }))
 
 const {width: winWidth, height: winHeight} = useWindowSize()
 
 // On coarse pointers the launchpad button owns the bottom-left corner, so
 // the bubble may not run under the button row: 1rem inset + the button's
-// CSS size (clamp(4rem, 15vw, 6rem)) + a breath of air. Desktop keeps the
-// slim margin — nothing lives down there.
+// CSS size (clamp(4.5rem, 17vw, 7rem)) + a breath of air. Desktop keeps
+// the slim margin — nothing lives down there.
 const bubbleBottomClearance = computed(() => {
 	if (!isCoarsePointer.value) return BUBBLE_BOTTOM_CLEARANCE
-	const button = clamp(winWidth.value * 0.15, 64, 96)
+	const button = clamp(winWidth.value * 0.17, 72, 112)
 	return 16 + button + 8
 })
 
@@ -661,7 +851,7 @@ const charHalf = computed(() =>
 )
 
 const bubbleGap = computed(() =>
-	clamp(zui.pixelsPerCell.value * 0.08, 3, BUBBLE_GAP_MAX)
+	clamp(zui.pixelsPerCell.value * 0.12, 4, BUBBLE_GAP_MAX)
 )
 
 // The screen point the camera steers the character to. Both axes start from
@@ -983,15 +1173,25 @@ let loopPass: number[] = []
 
 function buildFrameTimes(fromBeat: number, duration: number): number[] {
 	const frames: number[] = []
-	for (
-		let k = fromBeat;
-		k + 1 < BEAT_TIMES.length && BEAT_TIMES[k]! < duration;
-		k++
-	) {
+	let k = fromBeat
+	for (; k + 1 < BEAT_TIMES.length && BEAT_TIMES[k]! < duration; k++) {
 		const a = BEAT_TIMES[k]!
 		const b = BEAT_TIMES[k + 1]!
 		for (let f = 0; f < 8; f++) {
 			frames.push(a + ((b - a) * f) / 8)
+		}
+	}
+	// The tapped grid is meant to reach past the file's end, but this
+	// export stops one beat short (last marker 127.82s vs 128.69s of
+	// audio), which stalled the visuals for that beat at every loop
+	// seam while the music sailed on. Extend the grid with virtual
+	// beats at the last tapped interval until it covers the seam —
+	// whole 8-frame turns, so %8 stays aligned.
+	const step =
+		BEAT_TIMES[BEAT_TIMES.length - 1]! - BEAT_TIMES[BEAT_TIMES.length - 2]!
+	for (let a = BEAT_TIMES[k]!; a < duration; a += step) {
+		for (let f = 0; f < 8; f++) {
+			frames.push(a + (step * f) / 8)
 		}
 	}
 	return frames
@@ -1053,6 +1253,7 @@ function tickFrame(isLast: boolean) {
 	}
 
 	updateFollowTarget()
+	syncOpeningDolly()
 }
 
 useRafFn(() => {
@@ -1080,6 +1281,50 @@ const FRAME_SLOT =
 	(BEAT_TIMES[BEAT_TIMES.length - 1]! - BEAT_TIMES[0]!) /
 	(BEAT_TIMES.length - 1) /
 	8
+
+// --- The opening dolly ---
+// The camera meets the first ring close up — five cells across the short
+// side — and pulls out to the resting eight from the head of turn 1 to
+// the head of turn 6, sailing past the unlock (turn 5): a gesture on the
+// now-interactive stage simply interrupts it, via onNavigate below.
+// Ease-in-out, and stepped on the tile frame clock rather than glided
+// per-rAF: the camera breathes on the same pulse as the dance.
+const DOLLY_FROM_CELLS = 5
+const DOLLY_TO_CELLS = 8
+const DOLLY_FROM_FRAME = 0
+const DOLLY_TO_FRAME = 40
+let dollyDone = false
+
+// The dolly owns the camera only while nothing else wants it: the first
+// gesture (possible once the stage unlocks at its last step) takes over
+zui.onNavigate(() => {
+	dollyDone = true
+})
+
+function easeInOutCubic(t: number): number {
+	return t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2
+}
+
+// Called on every frame tick (catch-up bursts included — it only reads
+// currentFrame, so replays land on the same camera)
+function syncOpeningDolly() {
+	if (dollyDone) return
+	if (zui.followTarget.value) {
+		dollyDone = true
+		return
+	}
+	const progress =
+		(currentFrame - DOLLY_FROM_FRAME) / (DOLLY_TO_FRAME - DOLLY_FROM_FRAME)
+	if (progress >= 1) {
+		zui.setOpeningCells(DOLLY_TO_CELLS)
+		dollyDone = true
+		return
+	}
+	const eased = easeInOutCubic(Math.max(progress, 0))
+	zui.setOpeningCells(
+		DOLLY_FROM_CELLS + (DOLLY_TO_CELLS - DOLLY_FROM_CELLS) * eased
+	)
+}
 
 // A blue dot at the screen centre on every beat — of the TAPPED GRID, not
 // the offset visuals, so grid, dancers and music can be judged against each
@@ -1368,33 +1613,37 @@ async function init(canvasElement: HTMLCanvasElement) {
 
 	// パターンジェネレーター関数（常にcを返す）
 	tileMap.setMovePattern(function* (): Generator<MovePattern, never, void> {
-			// The opening is choreographed. The wait for the music's entrance
-			// is the beat grid's own: no frame ticks before the first tapped
-			// beat (~2.2s in), so the first ring lands exactly on beat one.
-			// The head yield must be EMPTY — the opening bridge is built from
-			// the first two yields and shows before any tick, and a mask there
-			// parks visible dancers on screen through the wait. From empty,
-			// the pre-beat bridge is Birth tiles on their blank first frame.
-			// Births in turn k come from yield k+1's out: turns 1-4 grow four
-			// rings (2x2 .. 8x8, filling the short side at the opening zoom),
-			// turn 5 floods the rest, turn 6 reverses, turns 7-10 sweep
-			// right, down, left, up.
+		// The opening is choreographed — the recording's first fourteen
+		// turns, kept as the piece's own cut. The wait for the music's
+		// entrance is the beat grid's own: no frame ticks before the first
+		// tapped beat (~2.2s in), so the first ring lands exactly on beat
+		// one. The head yield must be EMPTY — the opening bridge is built
+		// from the first two yields and shows before any tick, and a mask
+		// there parks visible dancers on screen through the wait. From
+		// empty, the pre-beat bridge is Birth tiles on their blank first
+		// frame. Births in turn k come from yield k+1's out: turns 1-7
+		// grow the rings (2x2 .. 14x14), turn 8 floods the rest, and
+		// turns 9-14 run the round dance — clockwise again, its reverse,
+		// then the four lane weaves.
 		yield Patterns.empty
-		for (let i = 1; i <= 4; i++) {
-			yield Patterns.radialMask(Patterns.clockwise, i)
-		}
-		// The back half of the choreography cedes the floor the moment the
-		// launchpad opens (possible from turn 5): entering pad mode is an
-		// explicit ask to steer NOW, not after the sweeps play out
-		for (const pattern of [
+
+		// The cut is a default, never a lock-out: opening the pads, or any
+		// key/pad press once the stage unlocks (turn 5), takes the floor
+		// at the next beat
+		const opening: MovePattern[] = [
+			...Array.from({length: 7}, (_, i) =>
+				Patterns.radialMask(Patterns.clockwise, i + 1)
+			),
+			Patterns.clockwise,
 			Patterns.clockwise,
 			Patterns.counterClockwise,
-			Patterns.right,
-			Patterns.down,
-			Patterns.left,
-			Patterns.up,
-		]) {
-			if (launchpadOpen.value) break
+			Patterns.upDown,
+			Patterns.downUp,
+			Patterns.leftRight,
+			Patterns.rightLeft,
+		]
+		for (const pattern of opening) {
+			if (launchpadOpen.value || patternControl.hasPressed()) break
 			yield pattern
 		}
 
@@ -1526,12 +1775,38 @@ main
 	// source is 1024px with 128px slices shown at 24px (1.5x the drawn
 	// contract's 1/8 scale — the line read too thin), so a 2x screen still
 	// samples it ~2.7:1 — see scripts/build-bubble-samples.py.
+	// The band is layout only — the drawing itself lives on the __skin
+	// layers below, whose boil is an opacity turn instead of a border-image
+	// swap (which re-rasterized and flickered on cold caches)
 	border 24px solid transparent
-	border-image url('/animondo/bubble/frame_0.webp') 128 fill round
-	// Boil at 12 fps, same clock as the hand-drawn icons (4 frames)
-	animation bubble-boil 0.3333s steps(1) infinite
 	text-align center
 	line-height 1.5
+
+	// The drawn frame, four standing layers deep — see bubble-skin-turn.
+	// Each carries the whole 1024px drawing (same 24px band and slices as
+	// the element's own contract) with its paper fill; inset -24px lands the
+	// layer's band exactly over the element's transparent one.
+	&__skin
+		position absolute
+		inset -24px
+		z-index -1
+		border 24px solid transparent
+		border-image url('/animondo/bubble/frame_0.webp') 128 fill round
+		animation bubble-skin-turn 0.3333s steps(1) infinite
+		animation-delay -0.3333s
+		pointer-events none
+
+		&--1
+			border-image-source url('/animondo/bubble/frame_1.webp')
+			animation-delay -0.25s
+
+		&--2
+			border-image-source url('/animondo/bubble/frame_2.webp')
+			animation-delay -0.1667s
+
+		&--3
+			border-image-source url('/animondo/bubble/frame_3.webp')
+			animation-delay -0.0833s
 
 	// Tail: its own drawing (tip pointing down), whose white fill masks the
 	// border line running behind it. Rotated per side below.
@@ -1540,8 +1815,8 @@ main
 		position absolute
 		width 54px
 		height 54px
-		background url('/animondo/bubble/tail_0.webp') center / contain no-repeat
-		animation bubble-tail-boil 0.3333s steps(1) infinite
+		background url('/animondo/bubble/tail.webp') 0 0 / 400% 100% no-repeat
+		animation bubble-sheet-boil 0.3333s steps(1) infinite
 
 	// Bubble above the character — tail below, pointing down. The 51px
 	// offset (from the padding box) leaves the tail's root just touching
@@ -1579,8 +1854,9 @@ main
 
 	// While the enter/leave steps resize the box, the contents would spill
 	// out of the half-grown frame — hide them. The tail is a pseudo element
-	// (not matched by >*), so it stays and rides along on the moving edge.
-	&--sizing > *
+	// (not matched by >*), and the frame lives on the __skin layers, so
+	// both stay and ride along on the moving edges.
+	&--sizing > *:not(.profile-bubble__skin)
 		visibility hidden
 
 	// Top row: the language switch sitting just left of the drawn ×
@@ -1592,7 +1868,7 @@ main
 
 	// Scaled by font-size alone — the words are 4em x 2em (LocaleSwitch)
 	&__lang
-		font-size 0.6rem
+		font-size 0.72rem
 
 	// The drawn × (80px source shown at ~28px, boiling like the frame)
 	&__close
@@ -1601,9 +1877,21 @@ main
 		height 1.75rem
 		padding 0
 		border none
-		background url('/animondo/bubble/close_0.webp') center / 1.25rem no-repeat
-		animation bubble-close-boil 0.3333s steps(1) infinite
+		position relative
+		background none
 		cursor pointer
+
+		// The drawing itself: a 1.25rem box paging the 4F sheet, centred in
+		// the button's larger hit area
+		&::before
+			content ''
+			position absolute
+			inset 0
+			margin auto
+			width 1.25rem
+			height 1.25rem
+			background url('/animondo/bubble/close.webp') 0 0 / 400% 100% no-repeat
+			animation bubble-sheet-boil 0.3333s steps(1) infinite
 
 		&:hover
 			opacity 0.6
@@ -1644,8 +1932,8 @@ main
 		align-self flex-end
 		height 1.2rem
 		aspect-ratio 300 / 97
-		background url('/animondo/bubble/web_0.webp') center / contain no-repeat
-		animation bubble-web-boil 0.3333s steps(1) infinite
+		background url('/animondo/bubble/web.webp') 0 0 / 400% 100% no-repeat
+		animation bubble-sheet-boil 0.3333s steps(1) infinite
 
 		&:hover
 			opacity 0.6
@@ -1665,7 +1953,7 @@ main
 			// Hand-drawn vignette, boiling like the frame. The masters are a
 			// luminance mask; the build turns their luma into alpha so no
 			// mask-mode is needed (Chrome only learned it in 120)
-			mask url('/animondo/bubble/thumb-mask_0.webp') center / 100% 100% no-repeat
+			mask url('/animondo/bubble/thumb-mask.webp') 0 0 / 400% 100% no-repeat
 			animation bubble-thumb-boil 0.3333s steps(1) infinite
 
 		// Quieter than the prose: smaller and paler, so the caption reads as
@@ -1674,6 +1962,17 @@ main
 			margin-top 0.25rem
 			font-size 0.7rem
 			color #a8a8a8
+
+			// The title leans, film-title style. No italic face exists, so
+			// the browser's synthetic italic stands in — font-style (unlike
+			// the About wordmark's transform trick) keeps the run inline,
+			// so a long title still wraps mid-title. Plain `italic` only:
+			// `oblique <angle>` parses as valid in Chrome but renders
+			// UPRIGHT (no synthesis at custom angles), so an angled
+			// "refinement" here would silently undo the slant. Verified
+			// against the actual BBBSprat OTF in Chrome 151.
+			i
+				font-style italic
 
 	&__text
 		margin-top 0.75rem
@@ -1715,54 +2014,38 @@ main
 	visibility hidden
 	pointer-events none
 
-@keyframes bubble-boil
+// The skin layer's quarter-turn: shown through its own drawn frame, gone
+// for the other three — each layer starts phase-shifted a frame apart.
+// VISIBILITY, not opacity: Safari stops painting border-image on an
+// element whose own opacity is keyframe-animated (the layer composites
+// empty) — visibility steps the same way and keeps the drawing.
+@keyframes bubble-skin-turn
 	0%
-		border-image-source url('/animondo/bubble/frame_0.webp')
+		visibility visible
 	25%
-		border-image-source url('/animondo/bubble/frame_1.webp')
-	50%
-		border-image-source url('/animondo/bubble/frame_2.webp')
-	75%
-		border-image-source url('/animondo/bubble/frame_3.webp')
+		visibility hidden
+	100%
+		visibility hidden
 
-@keyframes bubble-tail-boil
+// Every 4F sheet (tail, close, web) pages the same way
+@keyframes bubble-sheet-boil
 	0%
-		background-image url('/animondo/bubble/tail_0.webp')
+		background-position 0% 0
 	25%
-		background-image url('/animondo/bubble/tail_1.webp')
+		background-position 33.3333% 0
 	50%
-		background-image url('/animondo/bubble/tail_2.webp')
+		background-position 66.6667% 0
 	75%
-		background-image url('/animondo/bubble/tail_3.webp')
-
-@keyframes bubble-close-boil
-	0%
-		background-image url('/animondo/bubble/close_0.webp')
-	25%
-		background-image url('/animondo/bubble/close_1.webp')
-	50%
-		background-image url('/animondo/bubble/close_2.webp')
-	75%
-		background-image url('/animondo/bubble/close_3.webp')
-
-@keyframes bubble-web-boil
-	0%
-		background-image url('/animondo/bubble/web_0.webp')
-	25%
-		background-image url('/animondo/bubble/web_1.webp')
-	50%
-		background-image url('/animondo/bubble/web_2.webp')
-	75%
-		background-image url('/animondo/bubble/web_3.webp')
+		background-position 100% 0
 
 @keyframes bubble-thumb-boil
 	0%
-		mask-image url('/animondo/bubble/thumb-mask_0.webp')
+		mask-position 0% 0
 	25%
-		mask-image url('/animondo/bubble/thumb-mask_1.webp')
+		mask-position 33.3333% 0
 	50%
-		mask-image url('/animondo/bubble/thumb-mask_2.webp')
+		mask-position 66.6667% 0
 	75%
-		mask-image url('/animondo/bubble/thumb-mask_3.webp')
+		mask-position 100% 0
 
 </style>

@@ -10,7 +10,12 @@
 						<span class="visually-hidden">{{ t('about.title') }}</span>
 						<AnimondoTitle />
 					</h1>
-					<p>{{ t('about.body') }}</p>
+					<!-- The string is this repo's own (useI18n), and the only
+						markup is the wordmark's em — no third-party input
+						reaches this sink. -->
+					<!-- eslint-disable vue/no-v-html -->
+					<p v-html="bodyHtml" />
+					<!-- eslint-enable vue/no-v-html -->
 					<!-- The recording, offered right after the concept: the drawn
 						YouTube frame and its word on one centred line. Icon and
 						text are separate links (a button cannot nest in a link),
@@ -20,7 +25,7 @@
 							:glyph="PLAY_SHEET"
 							:outline="YOUTUBE_SHEET"
 							:aspect="1000 / 800"
-							size="3rem"
+							size="3.5rem"
 							state="fixed"
 							:label="t('tap.youtube')"
 							:href="YOUTUBE_URL"
@@ -55,11 +60,14 @@
 						<dt>{{ t('about.type.label') }}</dt>
 						<dd>{{ t('about.type.value') }}</dd>
 					</dl>
-					<!-- Supported by closes the bill, its credit drawn rather than
-						set: an animated WebP (scripts/build-logos.sh) loops the
-						logos' boil on its own -->
+					<!-- Supported by closes the bill: the wording set in type,
+						the credit also drawn — an animated WebP
+						(scripts/build-logos.sh) loops the logos' boil on its own -->
 					<section class="about-modal__support">
 						<p class="about-modal__framework">{{ t('about.framework') }}</p>
+						<p class="about-modal__supported">
+							{{ t('about.support.label') }} {{ t('about.support.value') }}
+						</p>
 						<!-- Bound, not a plain src: Vite rewrites static srcs into
 							imports and cannot resolve the baseURL-prefixed path -->
 						<img
@@ -85,6 +93,16 @@ const props = defineProps<{open: boolean}>()
 const emit = defineEmits<{(e: 'close'): void}>()
 
 const {t} = useI18n()
+
+// The wordmark is a proper noun and wants an italic neither typeface
+// carries; a skew on an inline-block stands in for one (see the style
+// below). Applied here so every occurrence in the body gets it.
+const bodyHtml = computed(() =>
+	t('about.body').replaceAll(
+		'Animondo',
+		'<em class="about-modal__wordmark">Animondo</em>'
+	)
+)
 
 // The caption link beside the YouTube icon, mirrored into its hover
 const youtubeHover = ref(false)
@@ -138,7 +156,7 @@ onKeyStroke('Escape', () => {
 	z-index 100
 	// The bottom clears the pads button (1rem inset + its clamp height +
 	// 1rem air), so the scrolled-out end of the text never sits under it
-	padding 2rem 2rem calc(2rem + clamp(4rem, 15vw, 6rem))
+	padding 2rem 2rem calc(2rem + clamp(4.5rem, 17vw, 7rem))
 	overflow-y auto
 	// Scroll, but no double-tap zoom (pinch is refused app-wide in app.vue)
 	touch-action pan-y
@@ -178,14 +196,15 @@ onKeyStroke('Escape', () => {
 		line-height 1.7
 
 	// Fixed top-center: both top corners are taken by the round sound/close
-	// buttons, which float above the modal. The switch's words size in em,
-	// so the font-size is the 80% scale.
+	// buttons, which float above the modal — and the switch sits centred on
+	// their line (top 1rem + half their clamp height). The words size in
+	// em, so the font-size is the scale — 120% of the old 0.8rem.
 	&__header
 		position fixed
-		top 2rem
+		top calc(1rem + clamp(4rem, 15vw, 6rem) / 2)
 		left 50%
-		transform translateX(-50%)
-		font-size 0.8rem
+		transform translate(-50%, -50%)
+		font-size 0.96rem
 
 	&__body
 		.about-modal__title
@@ -232,14 +251,23 @@ onKeyStroke('Escape', () => {
 				dt:not(:first-child)
 					margin-top 0.75rem
 
-		// The partner logos close the bill at the body's full measure — no
-		// label; the marks speak for themselves (the alt still does for
-		// assistive tech). One quiet line above places the piece in its
-		// residency.
+		// The partner logos close the bill at the body's full measure.
+		// Two quiet lines above place the piece in its residency and say
+		// the support in words, not only marks.
 		.about-modal__support
 			margin-top 2lh
 
-		.about-modal__framework
+		// The wordmark leans on the browser's synthetic italic — the Sprat
+		// family ships no italic cut at all (width/weight axes only), and
+		// synthesis is verified to slant the local OTFs in Chrome. Same
+		// mechanism as the profile bubble's work titles, so the two lean
+		// alike. NOTE: `oblique <angle>` parses but renders upright in
+		// Chrome — keep plain `italic`.
+		.about-modal__wordmark
+			font-style italic
+
+		.about-modal__framework,
+		.about-modal__supported
 			margin 0 0 1rem
 			font-size 0.85rem
 

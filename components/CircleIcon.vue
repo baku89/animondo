@@ -41,14 +41,18 @@ const props = withDefaults(
 		/** Externally-driven hover — a caption beside the icon being pointed
 		 * at should light the icon up too */
 		hover?: boolean
+		/** Repaint the ink this colour while hovered (e.g. brand colour
+		 * for a link out of the site) */
+		tint?: string
 	}>(),
 	{
 		leaving: false,
-		size: '3rem',
+		size: '3.5rem',
 		href: undefined,
 		outline: undefined,
 		aspect: 1,
 		hover: false,
+		tint: undefined,
 	}
 )
 
@@ -90,6 +94,7 @@ function draw() {
 	if (!context) return
 
 	context.clearRect(0, 0, w, h)
+	context.globalCompositeOperation = 'source-over'
 	context.imageSmoothingEnabled = true
 	context.imageSmoothingQuality = 'high'
 
@@ -118,6 +123,16 @@ function draw() {
 			drawWidth,
 			drawHeight
 		)
+	}
+
+	// The hover tint repaints the drawn ink in one colour: source-in keeps
+	// the ink's own alpha and swaps every pixel's colour for the tint's, so
+	// the hand-drawn line stays exactly as drawn, only re-inked.
+	if (props.tint && (ownHover.value || props.hover)) {
+		context.globalCompositeOperation = 'source-in'
+		context.fillStyle = props.tint
+		context.fillRect(0, 0, w, h)
+		context.globalCompositeOperation = 'source-over'
 	}
 }
 
@@ -158,8 +173,8 @@ onMounted(() => {
 <style lang="stylus">
 .circle-icon
 	display block
-	width 2.5rem
-	height 2.5rem
+	width 3rem
+	height 3rem
 	padding 0
 	background none
 	border none
