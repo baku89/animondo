@@ -37,8 +37,20 @@ export default defineNuxtConfig({
 				{property: 'og:locale', content: 'ja_JP'},
 				{property: 'og:locale:alternate', content: 'en_US'},
 				{name: 'twitter:card', content: 'summary_large_image'},
+				// The browser chrome joins the paper
+				{name: 'theme-color', content: '#ffffff'},
 			],
-			link: [{rel: 'preconnect', href: 'https://use.typekit.net', crossorigin: ''}],
+			// Icons from videos/favicon.png via scripts/build-favicon.sh: the
+			// tab keeps its alpha, the home screens (apple-touch-icon for
+			// iOS, the manifest's icons for Android) get it flattened on
+			// white. The manifest also carries the home-screen name and the
+			// white theme.
+			link: [
+				{rel: 'icon', type: 'image/png', href: '/animondo/favicon.png'},
+				{rel: 'apple-touch-icon', href: '/animondo/apple-touch-icon.png'},
+				{rel: 'manifest', href: '/animondo/manifest.webmanifest'},
+				{rel: 'preconnect', href: 'https://use.typekit.net', crossorigin: ''},
+			],
 			script: [
 				{
 					// Adobe Fonts (Typekit) kit for A-OTF Ryumin Pr6N L-KL.

@@ -1,0 +1,12 @@
+{
+	"name": "Animondo | アニm音頭",
+	"short_name": "Animondo",
+	"start_url": "/animondo/",
+	"display": "standalone",
+	"background_color": "#ffffff",
+	"theme_color": "#ffffff",
+	"icons": [
+		{"src": "/animondo/icon-192.png", "sizes": "192x192", "type": "image/png"},
+		{"src": "/animondo/icon-512.png", "sizes": "512x512", "type": "image/png"}
+	]
+}
