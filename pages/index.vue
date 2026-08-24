@@ -757,7 +757,7 @@ const BUBBLE_GAP_MAX = 16
  * 47px out, and that is the number the standoff must use. */
 const TAIL_REACH = 47
 /** Where the tail's TIP is pinned, in cells from the character's centre */
-const TIP_PER_CELL = 0.4
+const TIP_PER_CELL = 0.3
 const BUBBLE_MAX_WIDTH = 480
 /** Below this, a side-by-side layout is not worth the squeeze */
 const BUBBLE_MIN_WIDTH = 288
