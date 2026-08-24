@@ -31,10 +31,12 @@ interface WorkerSprite extends SpriteDecoder {
 	back: Regl.Texture2D
 	/** Frame the back texture holds, -1 when stale */
 	backFrame: number
+	/** First upload probed for the silent-black import (see uploadFrame) */
+	uploadVerified: boolean
 }
 
 export type MainToWorker =
-	| {type: 'load'; sources: string[]; buffers?: ArrayBuffer[]}
+	| {type: 'load'; sources: string[]; buffers?: ArrayBuffer[]; atlas?: boolean}
 	| {
 			type: 'start'
 			canvas: OffscreenCanvas
@@ -79,6 +81,19 @@ let tileMapTexture: Regl.Texture2D | null = null
 let fadeMaskTexture: Regl.Texture2D | null = null
 let sprites: WorkerSprite[] = []
 
+// --- Atlas mode (mobile) ---
+// Every frame of every sprite pre-uploaded once into one atlas texture per
+// artist (ATLAS_COLS x ATLAS_ROWS frame slots), decoders retired after —
+// past startup a beat costs nothing but a uniform, which is the point:
+// phones cannot afford eight decodes and uploads per beat, nor Android's
+// cap on concurrent hardware decoders. Requested by the main thread
+// ('load' {atlas}, paired with the half-size sprites), vetoed here when
+// MAX_TEXTURE_SIZE cannot hold the sheet.
+const ATLAS_COLS = 4
+const ATLAS_ROWS = 2
+let atlasMode = false
+let atlasFrame = 0
+
 // Scratch canvas for browsers whose WebGL will not take a VideoFrame
 // directly. regl does not recognise OffscreenCanvas as a pixel source, so
 // the fallback goes the long way round through getImageData.
@@ -91,7 +106,69 @@ const scratchContext = scratch.getContext('2d', {willReadFrequently: true})!
 // restoring whatever texture it had bound.
 let directUpload = true
 
-function uploadFrame(texture: Regl.Texture2D, frame: VideoFrame) {
+// Some Android drivers import a hardware-backed VideoFrame as solid
+// BLACK — texSubImage2D succeeds, no throw, no warning — and the shader's
+// min-blend then sinks whole cells (and their overlaps) into black. The
+// sprites are ink on white paper, so a readback of all-zero texels can
+// only mean the import failed: probe each sprite's first upload once, and
+// on black flip to the canvas path for good.
+let probeFbo: WebGLFramebuffer | null = null
+
+function uploadReadsBlack(
+	handle: WebGLTexture,
+	width: number,
+	height: number,
+	x = 0,
+	y = 0
+): boolean {
+	if (!gl) return false
+	probeFbo ??= gl.createFramebuffer()
+	const previousFbo = gl.getParameter(
+		gl.FRAMEBUFFER_BINDING
+	) as WebGLFramebuffer | null
+	gl.bindFramebuffer(gl.FRAMEBUFFER, probeFbo)
+	gl.framebufferTexture2D(
+		gl.FRAMEBUFFER,
+		gl.COLOR_ATTACHMENT0,
+		gl.TEXTURE_2D,
+		handle,
+		0
+	)
+	let black = false
+	if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE) {
+		const texel = new Uint8Array(4)
+		black = true
+		for (const [fx, fy] of [
+			[0.5, 0.5],
+			[0.25, 0.25],
+			[0.9, 0.9],
+		] as const) {
+			gl.readPixels(
+				x + Math.floor(width * fx),
+				y + Math.floor(height * fy),
+				1,
+				1,
+				gl.RGBA,
+				gl.UNSIGNED_BYTE,
+				texel
+			)
+			if (texel[0] || texel[1] || texel[2]) {
+				black = false
+				break
+			}
+		}
+	}
+	gl.bindFramebuffer(gl.FRAMEBUFFER, previousFbo)
+	return black
+}
+
+function uploadFrame(
+	texture: Regl.Texture2D,
+	frame: VideoFrame,
+	verify = false,
+	x = 0,
+	y = 0
+) {
 	if (directUpload && gl) {
 		try {
 			const handle = (texture as unknown as {_texture: {texture: WebGLTexture}})
@@ -100,8 +177,20 @@ function uploadFrame(texture: Regl.Texture2D, frame: VideoFrame) {
 			gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false)
 			gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false)
 			gl.bindTexture(gl.TEXTURE_2D, handle)
-			gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, frame)
+			gl.texSubImage2D(gl.TEXTURE_2D, 0, x, y, gl.RGBA, gl.UNSIGNED_BYTE, frame)
 			gl.bindTexture(gl.TEXTURE_2D, previous)
+			if (
+				verify &&
+				uploadReadsBlack(
+					handle,
+					frame.displayWidth || frame.codedWidth,
+					frame.displayHeight || frame.codedHeight,
+					x,
+					y
+				)
+			) {
+				throw new Error('direct VideoFrame upload reads back black')
+			}
 			return
 		} catch (error) {
 			directUpload = false
@@ -116,7 +205,15 @@ function uploadFrame(texture: Regl.Texture2D, frame: VideoFrame) {
 	}
 	scratchContext.drawImage(frame, 0, 0)
 	const image = scratchContext.getImageData(0, 0, width, height)
-	texture.subimage(image.data as unknown as Regl.TextureImageData)
+	texture.subimage(
+		{
+			width,
+			height,
+			data: new Uint8Array(image.data.buffer),
+		} as unknown as Regl.TextureImageData,
+		x,
+		y
+	)
 }
 
 // Uploads are costly enough on Safari (~6ms each) that two in one task
@@ -152,7 +249,10 @@ function ensureUploaded(sprite: WorkerSprite, frame: number): Promise<void> {
 			await decodeFrame(sprite, frame)
 			const decoded = sprite.frames.get(frame)
 			if (!decoded) return
-			await enqueueUpload(() => uploadFrame(sprite.back, decoded))
+			await enqueueUpload(() => {
+				uploadFrame(sprite.back, decoded, !sprite.uploadVerified)
+				sprite.uploadVerified = true
+			})
 			decoded.close()
 			sprite.frames.delete(frame)
 			sprite.backFrame = frame
@@ -163,15 +263,19 @@ function ensureUploaded(sprite: WorkerSprite, frame: number): Promise<void> {
 	return sprite.chain
 }
 
-async function load(sources: string[], buffers?: ArrayBuffer[]) {
+async function load(sources: string[], buffers?: ArrayBuffer[], atlas?: boolean) {
 	if (typeof VideoDecoder === 'undefined') {
 		ctx.postMessage({type: 'unsupported', reason: 'no VideoDecoder'})
 		return
 	}
-	if (!new OffscreenCanvas(1, 1).getContext('webgl')) {
+	const probeContext = new OffscreenCanvas(1, 1).getContext('webgl')
+	if (!probeContext) {
 		ctx.postMessage({type: 'unsupported', reason: 'no worker WebGL'})
 		return
 	}
+	const maxTextureSize = probeContext.getParameter(
+		probeContext.MAX_TEXTURE_SIZE
+	) as number
 
 	try {
 		sprites = await Promise.all(
@@ -189,9 +293,19 @@ async function load(sources: string[], buffers?: ArrayBuffer[]) {
 					front: null as unknown as Regl.Texture2D,
 					back: null as unknown as Regl.Texture2D,
 					backFrame: -1,
+					uploadVerified: false,
 				}
 			})
 		)
+		// The sheet must fit the device's texture limit; where it will not,
+		// the same half-size sources simply stream the old way
+		atlasMode =
+			atlas === true &&
+			sprites.every(
+				sprite =>
+					sprite.width * ATLAS_COLS <= maxTextureSize &&
+					sprite.height * ATLAS_ROWS <= maxTextureSize
+			)
 		ctx.postMessage({type: 'loaded'})
 	} catch (error) {
 		// H.264 the browser will not decode, a fetch that failed — all of it
@@ -200,7 +314,7 @@ async function load(sources: string[], buffers?: ArrayBuffer[]) {
 	}
 }
 
-function start(message: Extract<MainToWorker, {type: 'start'}>) {
+async function start(message: Extract<MainToWorker, {type: 'start'}>) {
 	canvas = message.canvas
 	gl = canvas.getContext('webgl', {
 		// The scene is one full-screen quad: there is no geometry edge
@@ -218,6 +332,21 @@ function start(message: Extract<MainToWorker, {type: 'start'}>) {
 	for (const sprite of sprites) {
 		// Linear, not regl's nearest default: the hand-drawn ink is shown
 		// scaled by the zoom, and nearest turns its edges to staircases
+		if (atlasMode) {
+			// One atlas per artist, born WHITE — paper, so a slot a failed
+			// decode never fills reads as blank page, not as a black tile
+			// for the min-blend to smear across the neighbourhood
+			sprite.front = regl.texture({
+				width: sprite.width * ATLAS_COLS,
+				height: sprite.height * ATLAS_ROWS,
+				data: atlasPaper(sprite.width, sprite.height),
+				mag: 'linear',
+				min: 'linear',
+			})
+			// Never swapped in atlas mode; aliased so nothing holds junk
+			sprite.back = sprite.front
+			continue
+		}
 		const filtered = {
 			width: sprite.width,
 			height: sprite.height,
@@ -230,7 +359,8 @@ function start(message: Extract<MainToWorker, {type: 'start'}>) {
 		// the texture is never seen blank
 		const first = sprite.frames.get(0)
 		if (first) {
-			uploadFrame(sprite.front, first)
+			uploadFrame(sprite.front, first, !sprite.uploadVerified)
+			sprite.uploadVerified = true
 			first.close()
 			sprite.frames.delete(0)
 		}
@@ -291,10 +421,56 @@ function start(message: Extract<MainToWorker, {type: 'start'}>) {
 			fadeMask: () => fadeMaskTexture,
 			fadeMaskScale: regl.prop<Record<string, unknown>, string>('fadeMaskScale'),
 			fadeMaskOffset: regl.prop<Record<string, unknown>, string>('fadeMaskOffset'),
+			frameScale: regl.prop<Record<string, unknown>, string>('frameScale'),
+			frameOffset: regl.prop<Record<string, unknown>, string>('frameOffset'),
 		},
 	})
 
+	if (atlasMode) await buildAtlases()
+
 	ctx.postMessage({type: 'ready'})
+}
+
+// The paper the atlases are born from, shared across the eight creations
+let paperData: Uint8Array | null = null
+function atlasPaper(width: number, height: number): Uint8Array {
+	const size = width * ATLAS_COLS * height * ATLAS_ROWS * 4
+	if (!paperData || paperData.length !== size) {
+		paperData = new Uint8Array(size).fill(255)
+	}
+	return paperData
+}
+
+// Decode all eight frames of every sprite into its atlas slots, then
+// retire the decoders: past this point a beat costs no decode and no
+// upload at all. Sequential on purpose — Android caps concurrent hardware
+// decoders — and behind the loading gate, so nobody is watching.
+async function buildAtlases() {
+	for (const sprite of sprites) {
+		for (let index = 0; index < sprite.chunks.length; index++) {
+			try {
+				await decodeFrame(sprite, index)
+				const frame = sprite.frames.get(index)
+				if (!frame) continue
+				uploadFrame(
+					sprite.front,
+					frame,
+					!sprite.uploadVerified,
+					(index % ATLAS_COLS) * sprite.width,
+					Math.floor(index / ATLAS_COLS) * sprite.height
+				)
+				sprite.uploadVerified = true
+				frame.close()
+				sprite.frames.delete(index)
+			} catch (error) {
+				// A dropped frame leaves its slot paper-white — a held pose,
+				// never a black cell
+				console.error(error)
+			}
+		}
+		sprite.decoder.close()
+		sprite.chunks = []
+	}
 }
 
 // regl does not take an ImageBitmap as a pixel source, so the veil goes the
@@ -322,6 +498,13 @@ async function loadFadeMask() {
 }
 
 async function present(frame: number, pixels?: Uint8Array) {
+	if (atlasMode) {
+		// Every frame already stands uploaded; presenting is pointing at
+		// its slot — the tile map still lands in the same breath
+		atlasFrame = frame
+		if (pixels) tileMapTexture?.subimage(pixels)
+		return
+	}
 	await Promise.all(sprites.map(sprite => ensureUploaded(sprite, frame)))
 	// One synchronous block: every sprite advances and the pattern lands
 	// with them, so no draw can catch the stage half-turned
@@ -344,6 +527,13 @@ function drawFrame(message: Extract<MainToWorker, {type: 'frame'}>) {
 	regl.poll()
 	regl.clear({color: [0, 0, 0, 0]})
 	drawCommand({
+		frameScale: atlasMode ? [1 / ATLAS_COLS, 1 / ATLAS_ROWS] : [1, 1],
+		frameOffset: atlasMode
+			? [
+					(atlasFrame % ATLAS_COLS) / ATLAS_COLS,
+					Math.floor(atlasFrame / ATLAS_COLS) / ATLAS_ROWS,
+				]
+			: [0, 0],
 		video0: sprites[0]!.front,
 		video1: sprites[1]!.front,
 		video2: sprites[2]!.front,
@@ -383,10 +573,13 @@ ctx.addEventListener('message', event => {
 	try {
 		switch (message.type) {
 			case 'load':
-				load(message.sources, message.buffers)
+				load(message.sources, message.buffers, message.atlas)
 				break
 			case 'start':
-				start(message)
+				start(message).catch(error => {
+					console.error(error)
+					reportFatal(error)
+				})
 				break
 			case 'tilemap':
 				tileMapTexture?.subimage(message.pixels)
@@ -408,6 +601,8 @@ ctx.addEventListener('message', event => {
 				break
 			}
 			case 'prepare':
+				// Atlas mode has nothing to prepare — every frame stands ready
+				if (atlasMode) break
 				for (const sprite of sprites) ensureUploaded(sprite, message.frame)
 				break
 			case 'frame':

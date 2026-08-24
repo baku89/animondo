@@ -26,6 +26,9 @@ export interface TileRendererOptions {
 	spriteBuffers?: ArrayBuffer[]
 	tileMapWidth: number
 	tileMapHeight: number
+	/** Pre-upload every frame into per-artist atlases (worker backend
+	 * only; pair with the half-size sprites) — see the worker's notes */
+	atlas?: boolean
 	/** The renderer died after setup (a worker crash, a lost context) */
 	onError: (error: unknown) => void
 }
@@ -116,6 +119,7 @@ async function createWorkerBackend(
 			type: 'load',
 			sources: options.sources,
 			buffers: options.spriteBuffers,
+			atlas: options.atlas,
 		} satisfies MainToWorker,
 		options.spriteBuffers ?? []
 	)
@@ -269,6 +273,10 @@ async function createMainBackend(
 			fadeMask: fadeMaskTexture,
 			fadeMaskScale: regl.prop<Record<string, unknown>, string>('fadeMaskScale'),
 			fadeMaskOffset: regl.prop<Record<string, unknown>, string>('fadeMaskOffset'),
+			// The streaming backend always shows the whole sheet — the
+			// atlas frame windowing (see tile.frag) never applies here
+			frameScale: [1, 1],
+			frameOffset: [0, 0],
 		},
 	})
 

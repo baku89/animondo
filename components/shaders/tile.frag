@@ -16,6 +16,12 @@ uniform sampler2D video7;
 
 uniform mat3 navMatrix;
 
+// The window into the video textures. Streaming mode shows the whole
+// texture (scale 1, offset 0); the mobile atlas packs all eight frames
+// into one sheet per artist, and these pick the current frame's slot.
+uniform vec2 frameScale;
+uniform vec2 frameOffset;
+
 // Wrapped cell coords of the watched dancer ((-1,-1) when nobody is), and
 // how far everyone else has receded toward the paper (0..1)
 uniform vec2 focusCell;
@@ -110,7 +116,7 @@ vec4 tile(vec2 uv, sampler2D texture, int tile, int rotation, int flipVertical) 
         return vec4(1.0);
     }
 
-    return texture2D(texture, (uv + offset) / vec2(3.0, 2.0));
+    return texture2D(texture, ((uv + offset) / vec2(3.0, 2.0)) * frameScale + frameOffset);
 }
 
 // Draw a single tile at given tile coordinate with UV offset

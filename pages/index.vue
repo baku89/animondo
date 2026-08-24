@@ -1592,8 +1592,13 @@ async function init(canvasElement: HTMLCanvasElement) {
 	})
 
 	// Then the whole manifest, behind the title screen's loading dots. The
-	// sprites' bytes come back here for the renderer to decode.
-	const spriteBuffers = await preloadAssets()
+	// sprites' bytes come back here for the renderer to decode. Mobile
+	// takes the half-size sprites and the worker's atlas mode — every
+	// frame pre-uploaded once at start, no per-beat decode or upload.
+	// ?atlas forces it anywhere, for testing.
+	const halfSprites =
+		matchMedia('(pointer: coarse)').matches || searchParams.has('atlas')
+	const spriteBuffers = await preloadAssets(halfSprites)
 
 	// Sprite order follows ARTISTS so the index the tile map stores keeps
 	// addressing the same artist. Laura and Lucija may rejoin later — adding
@@ -1601,7 +1606,10 @@ async function init(canvasElement: HTMLCanvasElement) {
 	// needs matching video8/video9 uniforms.
 	renderer = await createTileRenderer(canvasElement, {
 		frag: TileFragmentShader,
-		sources: ARTISTS.map(({id}) => `sprites/${id}.mp4`),
+		sources: ARTISTS.map(
+			({id}) => `sprites${halfSprites ? '-half' : ''}/${id}.mp4`
+		),
+		atlas: halfSprites,
 		spriteBuffers,
 		tileMapWidth: Patterns.size.width,
 		tileMapHeight: Patterns.size.height,

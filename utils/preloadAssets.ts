@@ -17,8 +17,10 @@ const frames = (base: string, count: number) =>
 const localized = (base: string) =>
 	(['en', 'ja'] as const).map(lang => `${base}_${lang}.webp`)
 
-/** The artist sprites — fetched here, decoded by the renderer */
-export const SPRITE_URLS = ARTISTS.map(({id}) => `/animondo/sprites/${id}.mp4`)
+/** The artist sprites — fetched here, decoded by the renderer. The atlas
+ * renderer (mobile) takes the half-size set: scripts/build-half-sprites.sh */
+export const spriteUrls = (half: boolean) =>
+	ARTISTS.map(({id}) => `/animondo/sprites${half ? '-half' : ''}/${id}.mp4`)
 
 export const PRELOAD_URLS: string[] = [
 	// The speech bubble's hand-drawn set: the frame family stays as single
@@ -95,9 +97,11 @@ export const PRELOAD_URLS: string[] = [
  * lands in the HTTP cache for the CSS and <img> that ask later.
  */
 export async function preloadAssets(
+	halfSprites = false,
 	onProgress: (fraction: number) => void = () => {}
 ): Promise<ArrayBuffer[]> {
-	const urls = [...SPRITE_URLS, ...PRELOAD_URLS]
+	const sprites = spriteUrls(halfSprites)
+	const urls = [...sprites, ...PRELOAD_URLS]
 	const responses = await Promise.all(urls.map(url => fetch(url)))
 	const failed = responses.find(response => !response.ok)
 	if (failed) throw new Error(`${failed.url}: HTTP ${failed.status}`)
@@ -145,5 +149,5 @@ export async function preloadAssets(
 	)
 
 	onProgress(1)
-	return buffers.slice(0, SPRITE_URLS.length)
+	return buffers.slice(0, sprites.length)
 }
