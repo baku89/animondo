@@ -37,6 +37,9 @@ const FAMILIES: Record<string, Binding> = {
 	arrowdown: {pattern: Patterns.down},
 	arrowleft: {pattern: Patterns.left},
 	' ': {pattern: Patterns.empty},
+	z: {pattern: Patterns.zigzag},
+	// m as in Moore: the closed-loop Hilbert walk
+	m: {pattern: Patterns.hilbert},
 	// Meandering chains, re-dealt on every press
 	'1': {pattern: () => Patterns.shuffle(Patterns.upDown)},
 }
@@ -74,14 +77,30 @@ const VARIATIONS: Binding[] = [
 	{pattern: Patterns.radialMask(Patterns.horizontalGather, 4), centred: true},
 ]
 
-const SPARE_KEYS = 'bdefgijkmnoprtyz023456789'
+const SPARE_KEYS = 'bdefgijknoprty023456789'
 
-// Rotations the launchpad's appear/vanish pad cycles through. The names can
-// never come out of event.key, so they stay unreachable from the keyboard.
+// Bindings only the launchpad's pads cycle through. The names can never
+// come out of event.key, so they stay unreachable from the keyboard. The
+// rings are the opening's own motif — the masked clockwise growing out of
+// the middle — named here rather than borrowed from the spare-key
+// variations, whose order is free to change.
 const PAD_VARIANTS: Record<string, Binding> = {
 	rav90: {pattern: turn(Patterns.rightAppearVanish, 1)},
 	rav180: {pattern: turn(Patterns.rightAppearVanish, 2)},
 	rav270: {pattern: turn(Patterns.rightAppearVanish, 3)},
+	// The spin pad walks its 2x2 blocks through their four phases instead of
+	// reversing: (1,0) -> (1,1) -> (0,1) -> back to q's (0,0)
+	scw10: {pattern: Patterns.offset(Patterns.smallClockwise, [1, 0])},
+	scw11: {pattern: Patterns.offset(Patterns.smallClockwise, [1, 1])},
+	scw01: {pattern: Patterns.offset(Patterns.smallClockwise, [0, 1])},
+	zig90: {pattern: turn(Patterns.zigzag, 1)},
+	zig180: {pattern: turn(Patterns.zigzag, 2)},
+	zig270: {pattern: turn(Patterns.zigzag, 3)},
+	// Scatter-first duals for the pads: births lead, and the gathers — whose
+	// dancers die into the middle — only come as the deliberate repeat
+	scatterAll: {pattern: Patterns.scatter, centred: true},
+	scatterH: {pattern: Patterns.horizontalScatter, centred: true},
+	scatterV: {pattern: Patterns.verticalScatter, centred: true},
 }
 
 export const BINDINGS: Record<string, Binding> = {
@@ -103,12 +122,24 @@ export interface Pad {
 
 export const PADS: Pad[] = [
 	{id: 'clockwise', keys: ['c']},
-	{id: 'gather', keys: ['a']},
-	{id: 'smallClockwise', keys: ['q']},
-	{id: 'axisGather', keys: ['h', 'v']},
-	{id: 'lanes', keys: ['u', 'l']},
+	// Scatter leads (a repeat inverts into the gather): the pads keep the
+	// dancers' deaths off the first tap. The keyboard's a/h/v stay
+	// gather-first for whoever knows what they are asking for.
+	{id: 'scatter', keys: ['scatterAll']},
+	// Repeats phase the 2x2 blocks around a cell-sized square loop rather
+	// than reversing the spin (the keyboard's q still inverts)
+	{id: 'smallClockwise', keys: ['q', 'scw10', 'scw11', 'scw01']},
+	{id: 'axisScatter', keys: ['scatterH', 'scatterV']},
+	// The lanes, one pad per axis; a repeat inverts the flow
+	{id: 'upDown', keys: ['u']},
+	{id: 'leftRight', keys: ['l']},
 	{id: 'appearVanish', keys: ['w', 'rav90', 'rav180', 'rav270']},
 	{id: 'shuffle', keys: ['1']},
+	// The closed Hilbert walk: the whole crowd one snaking chain, reversed
+	// by a repeat
+	{id: 'hilbert', keys: ['m']},
+	// Staircase chains; repeated taps turn the diagonal
+	{id: 'zigzag', keys: ['z', 'zig90', 'zig180', 'zig270']},
 	{id: 'up', keys: ['arrowup']},
 	{id: 'right', keys: ['arrowright']},
 	{id: 'down', keys: ['arrowdown']},

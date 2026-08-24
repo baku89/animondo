@@ -68,21 +68,46 @@ export class TileMap {
 		this.width = options.width
 		this.height = options.height
 		this.numberOfVideos = options.numberOfVideos
-		this.#generateTileInfo =
-			options.generateTileInfo ??
-			(() => {
-				return {
-					index: randomInt(0, this.numberOfVideos - 1),
-					flipVertical: false,
-				}
-			})
+		// When unset, births go through #pickBirthIndex (balanced and
+		// neighbour-aware) instead of a plain random draw
+		this.#generateTileInfo = options.generateTileInfo
 
 		this.#pixels = new Uint8Array(this.width * this.height * 3)
-		this.#tileInfo = new Array2D({
-			width: this.width,
-			height: this.height,
-			initialize: () => this.#generateTileInfo!(0, vec2.zero, 0),
-		})
+
+		// The initial fill is what the very FIRST births show — the opening
+		// bridge reads it before any step runs — so it obeys the same rules
+		// as later births: even counts, no two alike side by side, toroidal
+		// seams included.
+		if (this.#generateTileInfo) {
+			this.#tileInfo = new Array2D({
+				width: this.width,
+				height: this.height,
+				initialize: () => this.#generateTileInfo!(0, vec2.zero, 0),
+			})
+		} else {
+			const counts = new Array<number>(this.numberOfVideos).fill(0)
+			const filled: number[] = []
+			for (let y = 0; y < this.height; y++) {
+				for (let x = 0; x < this.width; x++) {
+					const beside = new Set<number>()
+					if (x > 0) beside.add(filled[y * this.width + x - 1]!)
+					if (y > 0) beside.add(filled[(y - 1) * this.width + x]!)
+					if (x === this.width - 1) beside.add(filled[y * this.width]!)
+					if (y === this.height - 1) beside.add(filled[x]!)
+					const index = this.#choose(counts, beside)
+					counts[index]!++
+					filled.push(index)
+				}
+			}
+			this.#tileInfo = new Array2D({
+				width: this.width,
+				height: this.height,
+				initialize: (x, y) => ({
+					index: filled[y * this.width + x]!,
+					flipVertical: false,
+				}),
+			})
+		}
 	}
 
 	/**
@@ -159,7 +184,24 @@ export class TileMap {
 		const previousPattern = this.#currentPattern
 
 		if (previousPattern) {
+			// The on-screen population per artist, and the identities already
+			// settled this step (in iteration order) — births read both, so a
+			// newcomer fills the thinnest ranks and avoids standing beside its
+			// own kind, same-step newcomers included.
+			const counts = new Array<number>(this.numberOfVideos).fill(0)
+			previousPattern.iterate((x, y, move) => {
+				if (move.in !== Direction.None || move.out !== Direction.None) {
+					counts[this.#tileInfo.get(x, y).index]!++
+				}
+			})
+			const decided = new Map<number, number>()
+
 			this.#tileInfo = this.#tileInfo.map((x, y, _, tileInfo) => {
+				const settle = (info: {index: number; flipVertical: boolean}) => {
+					decided.set(y * this.width + x, info.index)
+					return info
+				}
+
 				let info: {index: number; flipVertical: boolean} | undefined
 				let neighbourMove: Move | undefined
 
@@ -189,24 +231,28 @@ export class TileMap {
 						info.index === HonamiIndex &&
 						neighbourMove.in === neighbourMove.out
 					) {
-						return {
+						return settle({
 							...info,
 							flipVertical: !info.flipVertical,
-						}
+						})
 					}
-					return info
+					return settle(info)
 				}
 
 				if (nextPattern.get(x, y).out !== Direction.None) {
 					// どこからも流入しておらず、かつ次の手で流出する方向があるということは、新たに誕生する
-					return this.#generateTileInfo!(
-						this.#step,
-						[x, y],
-						this.#totalBornCount++
-					)
+					if (this.#generateTileInfo) {
+						return settle(
+							this.#generateTileInfo(this.#step, [x, y], this.#totalBornCount++)
+						)
+					}
+					this.#totalBornCount++
+					const index = this.#pickBirthIndex(x, y, nextPattern, counts, decided)
+					counts[index]!++
+					return settle({index, flipVertical: false})
 				} else {
 					// 流入もせず、流出もしないので、現状をそのまま帰す
-					return tileInfo.get(x, y)
+					return settle(tileInfo.get(x, y))
 				}
 			})
 		}
@@ -225,6 +271,57 @@ export class TileMap {
 		this.#nextPattern = nextPattern
 
 		this.#updatePixels()
+	}
+
+	// A newcomer's identity: never the same as a dancer it would stand next
+	// to (toroidal 4-neighbours that keep dancing next turn — freshly born
+	// ones included, via `decided`), and among what remains, whoever has the
+	// fewest dancers on the floor, so the troupe stays evenly mixed. Ties
+	// break randomly; an over-constrained corner falls back to the full cast.
+	#pickBirthIndex(
+		x: number,
+		y: number,
+		nextPattern: MovePattern,
+		counts: number[],
+		decided: Map<number, number>
+	): number {
+		const beside = new Set<number>()
+		for (const [dx, dy] of [
+			[-1, 0],
+			[1, 0],
+			[0, -1],
+			[0, 1],
+		] as const) {
+			const nx = (x + dx + this.width) % this.width
+			const ny = (y + dy + this.height) % this.height
+			// A neighbour with no move next turn is leaving or empty — its
+			// stale identity should not constrain anything
+			if (nextPattern.get(nx, ny).out === Direction.None) continue
+			beside.add(
+				decided.get(ny * this.width + nx) ?? this.#tileInfo.get(nx, ny).index
+			)
+		}
+		return this.#choose(counts, beside)
+	}
+
+	// The least-populated artist not standing right beside; ties break
+	// randomly, and an over-constrained spot falls back to the full cast
+	#choose(counts: number[], beside: Set<number>): number {
+		const avoid = beside.size < this.numberOfVideos ? beside : new Set<number>()
+
+		let pool: number[] = []
+		let fewest = Infinity
+		for (let index = 0; index < this.numberOfVideos; index++) {
+			if (avoid.has(index)) continue
+			const count = counts[index]!
+			if (count < fewest) {
+				fewest = count
+				pool = [index]
+			} else if (count === fewest) {
+				pool.push(index)
+			}
+		}
+		return pool[randomInt(0, pool.length - 1)]!
 	}
 
 	// タイル状態をピクセルバッファへ書き出す（GPU への転送はレンダラーの仕事）

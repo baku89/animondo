@@ -3,10 +3,16 @@ import {mat2d, mat3, vec2} from 'linearly'
 
 import * as Patterns from '@/utils/patterns'
 
+// Opening zoom: this many cells across the viewport's SHORT side, whatever
+// size the pattern grid is (its width only sets the tiling period)
+const OPENING_CELLS = 8
+
 export function useZUI(element: Ref<HTMLElement | null>) {
+	const openingScale = (2 * Patterns.size.width) / OPENING_CELLS
+
 	const transform = ref(
 		mat2d.mul(
-			mat2d.scaling(4),
+			mat2d.scaling(openingScale),
 
 			mat2d.translation(-0.5),
 			mat2d.scaling(1 / Patterns.size.width)
@@ -15,15 +21,14 @@ export function useZUI(element: Ref<HTMLElement | null>) {
 
 	const {width, height} = useElementSize(element)
 
-	// Opening zoom: eight cells across the viewport's SHORT side. The static
-	// default above assumes portrait; once the element is measured, correct
-	// for landscape, where the short side is the height.
+	// The static default above assumes portrait; once the element is
+	// measured, correct for landscape, where the short side is the height.
 	let zoomInitialized = false
 	watch([width, height], ([w, h]) => {
 		if (zoomInitialized || !w || !h) return
 		zoomInitialized = true
 		transform.value = mat2d.mul(
-			mat2d.scaling((4 * Math.min(w, h)) / w),
+			mat2d.scaling((openingScale * Math.min(w, h)) / w),
 			mat2d.translation(-0.5),
 			mat2d.scaling(1 / Patterns.size.width)
 		)
@@ -53,6 +58,7 @@ export function useZUI(element: Ref<HTMLElement | null>) {
 			mat2d.pivot(mat2d.scaling(clamped), origin),
 			transform.value
 		)
+		notifyNavigate()
 	}
 
 	// Wheel scroll and trackpad pinch (delivered as wheel with ctrlKey
@@ -133,6 +139,21 @@ export function useZUI(element: Ref<HTMLElement | null>) {
 		tapHandlers.push(handler)
 	}
 
+	// Fired whenever a GESTURE moves the camera — a drag pan, a pinch, a
+	// wheel zoom — and not when the camera moves by itself (follow, glide).
+	// The explore hint listens: once the visitor has done the thing it asks
+	// for, it can stop asking.
+	type NavigateHandler = () => void
+	const navigateHandlers: NavigateHandler[] = []
+
+	function onNavigate(handler: NavigateHandler) {
+		navigateHandlers.push(handler)
+	}
+
+	function notifyNavigate() {
+		for (const handler of navigateHandlers) handler()
+	}
+
 	useEventListener(element, 'pointerdown', event => {
 		try {
 			element.value?.setPointerCapture(event.pointerId)
@@ -178,6 +199,7 @@ export function useZUI(element: Ref<HTMLElement | null>) {
 				mat2d.translation(vec2.scale(vec2.sub(mid, prevMid), 2 / width.value)),
 				transform.value
 			)
+			notifyNavigate()
 			if (prevDist > 0 && dist > 0) {
 				zoomBy(dist / prevDist, mid[0], mid[1])
 			}
@@ -201,6 +223,7 @@ export function useZUI(element: Ref<HTMLElement | null>) {
 		const scaledDelta = vec2.scale(delta, 2 / width.value)
 
 		transform.value = mat2d.mul(mat2d.translation(scaledDelta), transform.value)
+		notifyNavigate()
 		pointers.set(event.pointerId, current)
 
 		const dt = event.timeStamp - lastMoveAt
@@ -404,6 +427,7 @@ export function useZUI(element: Ref<HTMLElement | null>) {
 		matrix,
 		inverseMatrix,
 		onTap,
+		onNavigate,
 		screenToWorld,
 		worldToScreen,
 		followTarget,

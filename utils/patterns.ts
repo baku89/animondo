@@ -114,7 +114,10 @@ export function rotate90(pattern: Array2D<Move>): Array2D<Move> {
 	})
 }
 
-export const size = {width: 16, height: 16}
+// 32 doubles the torus's repeat period, so the tiling reads less at a
+// distance. The automaton/texture cost is negligible; the opening zoom in
+// useZUI keeps its 8-cells-across-the-short-side framing independently.
+export const size = {width: 32, height: 32}
 export const width = size.width
 export const height = size.height
 
@@ -391,6 +394,84 @@ export const leftRight = new Array2D<Move>({
 })
 
 export const rightLeft = invert(leftRight)
+
+// The Hilbert curve with its tail joined back to its head: one closed
+// stroke through every cell, the whole crowd a single snaking chain. The
+// classic d2xy bit-walk lays the open curve from (0,0) to (side-1, 0); its
+// last step wraps right across the toroidal seam into its first, closing
+// the loop. Assumes a square grid with a power-of-two side (it is 32).
+export const hilbert = (() => {
+	const side = size.width
+	const count = side * side
+
+	// en.wikipedia.org/wiki/Hilbert_curve — d2xy
+	function point(index: number): [number, number] {
+		let x = 0
+		let y = 0
+		let t = index
+		for (let s = 1; s < side; s *= 2) {
+			const rx = 1 & (t >> 1)
+			const ry = 1 & (t ^ rx)
+			if (ry === 0) {
+				if (rx === 1) {
+					x = s - 1 - x
+					y = s - 1 - y
+				}
+				;[x, y] = [y, x]
+			}
+			x += s * rx
+			y += s * ry
+			t >>= 2
+		}
+		return [x, y]
+	}
+
+	// The toroidal single step from a to b; anything but a single step is a
+	// broken curve, better dead at module load than silently still
+	function directionTo(a: [number, number], b: [number, number]): Direction {
+		if ((b[0] - a[0] + side) % side === 1 && a[1] === b[1]) {
+			return Direction.Right
+		}
+		if ((a[0] - b[0] + side) % side === 1 && a[1] === b[1]) {
+			return Direction.Left
+		}
+		if ((b[1] - a[1] + side) % side === 1 && a[0] === b[0]) {
+			return Direction.Down
+		}
+		if ((a[1] - b[1] + side) % side === 1 && a[0] === b[0]) {
+			return Direction.Up
+		}
+		throw new Error(`hilbert: non-adjacent step ${a} -> ${b}`)
+	}
+
+	const moves = new Array2D<Move>({
+		...size,
+		initialValue: move(Direction.None, Direction.None),
+	})
+	for (let i = 0; i < count; i++) {
+		const here = point(i)
+		moves.set(here[0], here[1], {
+			in: directionTo(here, point((i + count - 1) % count)),
+			out: directionTo(here, point((i + 1) % count)),
+		})
+	}
+	return moves
+})()
+
+// Zigzag: right, down, right, down… a staircase chain. One static pattern
+// does it — the cell's parity (x + y) picks the direction, so stepping
+// right lands on an odd cell that sends the dancer down, stepping down
+// lands on an even one that sends it right again. With even width and
+// height the parity survives the toroidal seam, so no chain ever breaks.
+export const zigzag = new Array2D<Move>({
+	...size,
+	initialize: (x, y) => {
+		if ((x + y) % 2 === 0) {
+			return {in: Direction.Up, out: Direction.Right}
+		}
+		return {in: Direction.Left, out: Direction.Down}
+	},
+})
 
 export const down = new Array2D<Move>({
 	...size,

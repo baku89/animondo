@@ -36,4 +36,36 @@ ffmpeg -v error -y -i videos/bubble-thumb-mask.mov \
 	-filter_complex '[0:v]format=gray,split[a][b];[a][b]alphamerge' \
 	-start_number 0 -c:v libwebp -lossless 1 public/bubble/thumb-mask_%d.webp
 
+# Solid-colour silhouettes of the frame (its alpha — paper, ink and outline
+# as one shape — repainted flat). The launchpad's glowing sheets border-image
+# these with `fill`, so the glow's edge is the drawn edge in every browser
+# (mask-border never made it past WebKit). Keep the colours in step with
+# PatternLaunchpad.vue ($pad-orange).
+silhouette() {
+	ffmpeg -v error -y -f lavfi -i "color=$2:s=1024x1024:r=12" \
+		-i videos/bubble.mov \
+		-filter_complex '[1:v]alphaextract[a];[0:v][a]alphamerge' \
+		-frames:v 4 -start_number 0 -c:v libwebp -lossless 1 \
+		"public/bubble/fill-$1_%d.webp"
+}
+
+silhouette orange 0xff6a00
+silhouette white white
+
+# The frame's ink alone: the white paper inside the drawing is turned
+# transparent (new alpha = alpha x inverted luma), leaving line work that
+# can sit ABOVE the coloured sheets without its band of paper covering them.
+# Black is the launchpad's always-on frame; orange marks the waiting pad.
+ink() {
+	ffmpeg -v error -y -f lavfi -i "color=$2:s=1024x1024:r=12" \
+		-i videos/bubble.mov \
+		-filter_complex \
+		'[1:v]alphaextract[a];[1:v]format=gray,negate[nl];[a][nl]blend=all_mode=multiply[na];[0:v][na]alphamerge' \
+		-frames:v 4 -start_number 0 -c:v libwebp -lossless 1 \
+		"public/bubble/$1_%d.webp"
+}
+
+ink frame-ink black
+ink ink-orange 0xff6a00
+
 ls -la public/bubble
