@@ -1,7 +1,7 @@
 const messages = {
 	en: {
 		'meta.description':
-			'A bon-odori of hand-drawn characters by EU and Japanese artists, swaying endlessly to the rhythm of Kawachi Ondo. Born from the Osaka Expo 2025 EU–Japan Animation Residency.',
+			'A bon-odori of hand-drawn characters by EU and Japanese artists, swaying endlessly to Kawachi Ondo. Born from the Osaka Expo 2025 EU–Japan Animation Residency.',
 		'tap.title': 'Tap To Start',
 		'tap.youtube': 'Watch on YouTube',
 		'tap.unsupported': 'This browser cannot run the piece.',
@@ -48,7 +48,7 @@ const messages = {
 	},
 	ja: {
 		'meta.description':
-			'EU・日本の作家たちが手描きしたキャラクターが、河内音頭のリズムに合わせて舞い続けるアニメーションの盆踊り。大阪・関西万博2025 EU–日本アニメーションレジデンシーから生まれました。',
+			'EU・日本の作家たちが手描きしたキャラクターが、河内音頭に合わせて舞い続けるアニメーションの盆踊り。大阪・関西万博2025 EU–日本アニメーションレジデンシーから生まれました。',
 		'tap.title': 'タップで開始',
 		'tap.youtube': 'YouTube で観る',
 		'tap.unsupported': 'このブラウザでは再生できません。',
