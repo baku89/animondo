@@ -334,8 +334,10 @@ const PAD_ICONS: Record<
 		step: -90,
 		invertAsset: 'pinch',
 	},
-	// Drawn flowing right, like the rightAppearVanish it fires
-	appearVanish: {asset: 'wave', rotate: 0, step: -90},
+	// Drawn flowing right, like the rightAppearVanish it fires; its
+	// inversion runs the wave backwards, which is the half-turn face
+	// (exactly how the drift folds it: inverted = two cycle steps)
+	appearVanish: {asset: 'wave', rotate: 0, step: -90, invert: 'rotate'},
 	// A 180 would only swap the lanes' columns; the vertical flip is what
 	// reverses each arrow's flow
 	upDown: {asset: 'lane-vertical', rotate: 0, invert: 'flip'},
@@ -754,6 +756,30 @@ watch(
 			state.transform = iconTransform(next)
 			state.sheet = iconSheet(next)
 		}
+	}
+)
+
+// A re-tap turns the cycle while the icon already stands (the same pad
+// queued again, or the dancing pad re-queued): the standing drawing
+// re-enters so the new orientation — the lanes' flip, an arrow's turn,
+// a dual's sheet — is frozen in fresh, never swapped mid-drawing. A
+// mid-white-bow icon is left to the ticker, which re-enters it with
+// fresh state once the bow has finished.
+watch(
+	() => props.padCycle,
+	cycle => {
+		if (!cycle) return
+		const state = icons[cycle.id]
+		if (!state) return
+		if (state.phase !== 'enter' && state.phase !== 'loop') return
+		const transform = iconTransform(cycle.id)
+		const sheet = iconSheet(cycle.id)
+		if (transform === state.transform && sheet === state.sheet) return
+		state.phase = 'enter'
+		state.frame = 0
+		state.wait = 0
+		state.transform = transform
+		state.sheet = sheet
 	}
 )
 
