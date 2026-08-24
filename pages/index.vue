@@ -725,6 +725,13 @@ watch([aboutEverOpened, launchpadOpen], ([opened, pads]) => {
 watch(padsEverPlayed, played => {
 	if (played && padsTipVisible.value) padsTipLeaving.value = true
 })
+// A profile bubble has the floor: any nudge still up plays itself out
+// (speakNudge already holds new ones back while the bubble stands)
+watch(selection, sel => {
+	if (!sel) return
+	if (aboutTipVisible.value) aboutTipLeaving.value = true
+	if (padsTipVisible.value) padsTipLeaving.value = true
+})
 watch(startupFailed, failed => {
 	if (!failed) return
 	if (aboutTipVisible.value) aboutTipLeaving.value = true
@@ -1273,7 +1280,7 @@ useRafFn(() => {
 // compare candidates without an edit.
 const searchParams = new URLSearchParams(location.search)
 const offsetParam = Number(searchParams.get('offset') ?? NaN)
-const FRAME_OFFSET = Number.isFinite(offsetParam) ? offsetParam : -1
+const FRAME_OFFSET = Number.isFinite(offsetParam) ? offsetParam : -2
 
 // One frame-slot: an eighth of the average tapped beat. The grid sways a
 // few ms around it, less than anyone can hear at a quarter-beat shift.
