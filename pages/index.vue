@@ -1284,15 +1284,16 @@ const FRAME_SLOT =
 
 // --- The opening dolly ---
 // The camera meets the first ring close up — five cells across the short
-// side — and pulls out to the resting eight from the head of turn 1 to
-// the head of turn 6, sailing past the unlock (turn 5): a gesture on the
-// now-interactive stage simply interrupts it, via onNavigate below.
-// Ease-in-out, and stepped on the tile frame clock rather than glided
-// per-rAF: the camera breathes on the same pulse as the dance.
+// side — and pulls out to rest with fifteen cells across the LONG side,
+// from the head of turn 1 to the head of turn 8, sailing past the unlock
+// (turn 5): a gesture on the now-interactive stage simply interrupts it,
+// via onNavigate below. Ease-in-out, and stepped on the tile frame clock
+// rather than glided per-rAF: the camera breathes on the same pulse as
+// the dance.
 const DOLLY_FROM_CELLS = 5
-const DOLLY_TO_CELLS = 8
+const DOLLY_TO_LONG_CELLS = 15
 const DOLLY_FROM_FRAME = 0
-const DOLLY_TO_FRAME = 40
+const DOLLY_TO_FRAME = 56
 let dollyDone = false
 
 // The dolly owns the camera only while nothing else wants it: the first
@@ -1315,15 +1316,21 @@ function syncOpeningDolly() {
 	}
 	const progress =
 		(currentFrame - DOLLY_FROM_FRAME) / (DOLLY_TO_FRAME - DOLLY_FROM_FRAME)
+	// setOpeningCells speaks short-side cells; the resting shot is set in
+	// LONG-side cells, so convert by the screen's aspect (a portrait phone
+	// and a landscape desktop rest on the same fifteen-cell sweep)
+	const long = Math.max(winWidth.value, winHeight.value)
+	const toCells = long
+		? (DOLLY_TO_LONG_CELLS * Math.min(winWidth.value, winHeight.value)) /
+			long
+		: DOLLY_TO_LONG_CELLS
 	if (progress >= 1) {
-		zui.setOpeningCells(DOLLY_TO_CELLS)
+		zui.setOpeningCells(toCells)
 		dollyDone = true
 		return
 	}
 	const eased = easeInOutCubic(Math.max(progress, 0))
-	zui.setOpeningCells(
-		DOLLY_FROM_CELLS + (DOLLY_TO_CELLS - DOLLY_FROM_CELLS) * eased
-	)
+	zui.setOpeningCells(DOLLY_FROM_CELLS + (toCells - DOLLY_FROM_CELLS) * eased)
 }
 
 // A blue dot at the screen centre on every beat — of the TAPPED GRID, not
