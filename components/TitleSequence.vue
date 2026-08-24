@@ -86,7 +86,7 @@
 import {useEventListener, useMediaQuery, useTimeoutFn} from '@vueuse/core'
 
 import {PLAY_SHEET, YOUTUBE_SHEET} from '~/composables/useSpritePlayer'
-import {YOUTUBE_URL} from '~/utils/links'
+import {YOUTUBE_RED, YOUTUBE_URL} from '~/utils/links'
 
 const props = withDefaults(
 	defineProps<{
@@ -145,9 +145,8 @@ useHead(() => ({
 
 const started = ref(false)
 // One hover for the pair: the caption link and the YouTube icon light
-// each other up, both taking the brand's red
+// each other up, both taking the brand's red (YOUTUBE_RED, utils/links)
 const linkHover = ref(false)
-const YOUTUBE_RED = '#ff0000'
 // Kept mounted after the tap so the drawn exit can play itself out
 const playPresent = ref(true)
 
@@ -281,26 +280,30 @@ useEventListener('keydown', (event: KeyboardEvent) => {
 		display flex
 		flex-direction column
 		align-items center
-		gap 1rem
 		width 100%
 		text-align center
 		line-height 1.7
 
 		a
 			cursor pointer
+			// The caption's air above is its own padding, not a flex gap:
+			// crossing from icon to caption never passes bare ground, so
+			// the cursor and the pair's shared red hold steady
+			padding-top 1rem
 
 			&:hover
 				text-decoration underline
+
+		p
+			margin-top 1rem
+			font-size 0.85rem
+			opacity 0.6
 
 	// The pair's shared hover (set from either end): the caption takes
 	// YouTube's red along with the icon's re-inked frame
 	&__offsite--hover a
 		color #ff0000
 		text-decoration underline
-
-		p
-			font-size 0.85rem
-			opacity 0.6
 
 @keyframes title-lang-fade
 	from

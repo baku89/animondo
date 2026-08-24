@@ -20,7 +20,12 @@
 						YouTube frame and its word on one centred line. Icon and
 						text are separate links (a button cannot nest in a link),
 						the same pairing as the unsupported screen's. -->
-					<div class="about-modal__youtube">
+					<div
+						class="about-modal__youtube"
+						:class="{'about-modal__youtube--hover': youtubeHover}"
+					>
+						<!-- Hover runs both ways: pointing at either the icon or
+							the caption re-inks the pair in YouTube's red -->
 						<CircleIcon
 							:glyph="PLAY_SHEET"
 							:outline="YOUTUBE_SHEET"
@@ -30,6 +35,9 @@
 							:label="t('tap.youtube')"
 							:href="YOUTUBE_URL"
 							:hover="youtubeHover"
+							:tint="YOUTUBE_RED"
+							@pointerenter="youtubeHover = true"
+							@pointerleave="youtubeHover = false"
 						/>
 						<!-- Pointing at the caption lights the icon up too -->
 						<a
@@ -87,7 +95,7 @@ import {onKeyStroke} from '@vueuse/core'
 
 import type {MessageKey} from '~/composables/useI18n'
 import {PLAY_SHEET, YOUTUBE_SHEET} from '~/composables/useSpritePlayer'
-import {YOUTUBE_URL} from '~/utils/links'
+import {YOUTUBE_RED, YOUTUBE_URL} from '~/utils/links'
 
 const props = defineProps<{open: boolean}>()
 const emit = defineEmits<{(e: 'close'): void}>()
@@ -223,10 +231,20 @@ onKeyStroke('Escape', () => {
 			display flex
 			align-items center
 			justify-content center
-			gap 0.75rem
 			margin 0 0 2lh
 
-			a:hover
+			a
+				// The caption abuts the icon (padding, not flex gap), so the
+				// cursor and the pair's shared red hold steady across the pair
+				padding-left 0.75rem
+
+				&:hover
+					text-decoration underline
+
+			// The pair's shared hover: the caption takes YouTube's red along
+			// with the icon's re-inked frame (see YOUTUBE_RED)
+			&--hover a
+				color #ff0000
 				text-decoration underline
 
 		dl
