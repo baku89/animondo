@@ -750,9 +750,12 @@ const BUBBLE_BOTTOM_CLEARANCE = 24
 // with the zoom so a zoomed-out dancer keeps the bubble snug instead of
 // floating a fixed distance away.
 const BUBBLE_GAP_MAX = 16
-/** The drawn tail's reach past the bubble's edge, toward the character.
- * Keep in step with the CSS: the tail pseudo-element sits at ±51px. */
-const TAIL_LENGTH = 51
+/** How far the drawn tail's TIP actually reaches past the bubble's edge.
+ * The pseudo-element sits at ±51px (keep in step with the CSS), but the
+ * V's ink stops ~4px short of the image's edge (measured 3.6-4.4px
+ * across the four boil frames of bubble/tail.webp) — so the tip lands
+ * 47px out, and that is the number the standoff must use. */
+const TAIL_REACH = 47
 /** Where the tail's TIP is pinned, in cells from the character's centre */
 const TIP_PER_CELL = 0.4
 const BUBBLE_MAX_WIDTH = 480
@@ -870,7 +873,7 @@ const bubbleGap = computed(() =>
 // out, the BUBBLE is what shrinks (width/maxHeight in bubbleStyle), the
 // tip never leaves its spot.
 const bubbleStandoff = computed(
-	() => zui.pixelsPerCell.value * TIP_PER_CELL + TAIL_LENGTH
+	() => zui.pixelsPerCell.value * TIP_PER_CELL + TAIL_REACH
 )
 
 // The screen point the camera steers the character to. Both axes start from
