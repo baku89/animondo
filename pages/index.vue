@@ -1405,8 +1405,12 @@ function renderFrame() {
 	// carries visible ink — it used to peek through the title screen.
 	if (currentFrame === 0 || !renderer) return
 
-	const width = Math.round(canvasWidth.value * window.devicePixelRatio)
-	const height = Math.round(canvasHeight.value * window.devicePixelRatio)
+	// Two device pixels per CSS pixel is where the eye stops collecting —
+	// phone screens run DPR 2.75-3, and the shader's five-tap min-blend at
+	// native resolution is fill-rate the piece cannot afford there
+	const dpr = Math.min(window.devicePixelRatio, 2)
+	const width = Math.round(canvasWidth.value * dpr)
+	const height = Math.round(canvasHeight.value * dpr)
 	if (!width || !height) return
 
 	// Settle the camera (flick glide, follow) right before the draw is issued
@@ -1418,7 +1422,6 @@ function renderFrame() {
 	const sel = selection.value
 	focusDim += ((sel ? FOCUS_DIM : 0) - focusDim) * 0.12
 
-	const dpr = window.devicePixelRatio
 	const grainTick = Math.floor(performance.now() * 0.012)
 
 	renderer.render({
