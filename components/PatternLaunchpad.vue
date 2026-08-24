@@ -898,10 +898,17 @@ $pad-orange = #ff6a00
 		// re-arms animation-name on standing DOM, which restarts the
 		// corner wave and the intro faces natively — the open-time
 		// remount (and its iOS jank) is gone. The ghost pad keeps its
-		// boil and plays its little entrance when it surfaces.
+		// boil.
 		.pattern-launchpad__pad:not(.pattern-launchpad__pad--ghost),
 		.pattern-launchpad__pad:not(.pattern-launchpad__pad--ghost) *
 			animation none !important
+
+		// The ghost pops in whole: pad-enter would replay its corner-
+		// anchored scale on surfacing, so the pad's own animation is
+		// stripped (the plies inside keep boiling). Its only motion is
+		// the beat pulse, centre-origin on __inner.
+		.pattern-launchpad__pad--ghost
+			animation none
 
 		.pattern-launchpad__pad--ghost
 			visibility visible
