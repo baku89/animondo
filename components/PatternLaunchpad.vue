@@ -955,7 +955,7 @@ $pad-orange = #ff6a00
 	// WebKit's animation machinery, they only stop advancing.)
 	@media (hover: none)
 		&__frame-set--black
-			opacity 0.35
+			opacity 0.18
 
 	&__pad
 		position relative
