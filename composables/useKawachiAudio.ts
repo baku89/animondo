@@ -92,6 +92,14 @@ export function useKawachiAudio() {
 			// The context is born suspended; start() runs inside the visitor's
 			// tap, which is the gesture that lets it resume
 			await context.resume()
+			// iOS sometimes pops at the start: the output un-mutes right on
+			// the first samples' edge. A 50ms attack from silence masks it —
+			// over long before the first beat (~2.2s in). The ramp lands on
+			// the muted level, in case the toggle was hit on the title screen.
+			const now = context.currentTime
+			gain.gain.cancelScheduledValues(now)
+			gain.gain.setValueAtTime(0, now)
+			gain.gain.linearRampToValueAtTime(muted.value ? 0 : 1, now + 0.05)
 			source.start()
 			startedAt = context.currentTime
 			bufferDuration = source.buffer.duration
