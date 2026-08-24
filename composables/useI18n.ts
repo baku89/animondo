@@ -1,14 +1,14 @@
 const messages = {
 	en: {
 		'meta.description':
-			'A hand-drawn animated bon-odori by eight EU and Japanese artists, dancing endlessly to the rhythm of Kawachi Ondo. Born from the Osaka Expo 2025 EU–Japan Animation Residency.',
+			'A hand-drawn animated bon-odori by EU and Japanese animation artists, dancing endlessly to the rhythm of Kawachi Ondo. Born from the Osaka Expo 2025 EU–Japan Animation Residency.',
 		'tap.title': 'Tap To Start',
 		'tap.youtube': 'Watch on YouTube',
 		'tap.unsupported': 'This browser cannot run the piece.',
 		'about.button.label': 'About this project',
 		'about.title': 'About Animondo',
 		'about.body':
-			'Animondo is an animated bon-odori by the eight animation artists who took part in the Osaka Expo 2025 EU–Japan Animation Residency. Their hand-drawn characters dance together to the rhythm of Kawachi Ondo. It was made as a memento of nearly a month of exchange.',
+			'Animondo is an animated bon-odori born from the Osaka Expo 2025 EU–Japan Animation Residency. Hand-drawn characters by the residency artists dance together to the rhythm of Kawachi Ondo. It was made as a memento of nearly a month of exchange.',
 		'about.artists.label': 'Residency artists',
 		'about.artists.list':
 			'Baku Hashimoto · Edmunds Jansons · Honami Yano · Laura Gonçalves · Lucija Mrzljak · Masa Kudo · Noémie Marsily · Sander Joon · Shinobu Soejima · Sumito Sakakibara',
@@ -37,6 +37,9 @@ const messages = {
 		'sound.mute': 'Mute',
 		'sound.unmute': 'Unmute',
 		'sound.notice': 'Sound on',
+		'sound.muted.notice': 'Sound off',
+		'about.notice': "What's this?",
+		'launchpad.notice': 'Change the dance!',
 		'explore.notice.pc': 'Drag and scroll to explore!',
 		'explore.notice.mobile': 'Pinch and swipe to explore!',
 		'tapme.notice.pc': 'Click me!',
@@ -45,14 +48,14 @@ const messages = {
 	},
 	ja: {
 		'meta.description':
-			'8人のEU・日本の作家による手描きアニメーションが、河内音頭のリズムに合わせて踊り続けるアニメーションの盆踊り。大阪・関西万博2025 EU–日本アニメーションレジデンシーから生まれました。',
+			'EU・日本の作家たちによる手描きアニメーションが、河内音頭のリズムに合わせて踊り続けるアニメーションの盆踊り。大阪・関西万博2025 EU–日本アニメーションレジデンシーから生まれました。',
 		'tap.title': 'タップで開始',
 		'tap.youtube': 'YouTube で観る',
 		'tap.unsupported': 'このブラウザでは再生できません。',
 		'about.button.label': 'このプロジェクトについて',
 		'about.title': 'Animondo について',
 		'about.body':
-			'Animondo は、大阪・関西万博 2025 EU–日本 アニメーションレジデンシーに参加した 8 人のアニメーション作家による、アニメーションの盆踊りです。それぞれが手描きしたキャラクターが、河内音頭に合わせて踊り続けます。1 ヶ月近くにわたる交流の記念としてつくりました。',
+			'Animondo は、大阪・関西万博 2025 EU–日本 アニメーションレジデンシーから生まれた、アニメーションの盆踊りです。参加作家たちが手描きしたキャラクターが、河内音頭に合わせて踊り続けます。1 ヶ月近くにわたる交流の記念としてつくりました。',
 		'about.artists.label': 'Residency artists',
 		'about.artists.list':
 			'橋本麦 · エドムンズ・ヤンソンス · 矢野ほなみ · ローラ・ゴンサルヴェス · ルシア・マルツリジャーク · 工藤雅 · ノエミ・マルシリ · サンダー・ヨン · 副島しのぶ · 榊原澄人',
@@ -81,6 +84,9 @@ const messages = {
 		'sound.mute': '消音',
 		'sound.unmute': '消音解除',
 		'sound.notice': '音が出ます',
+		'sound.muted.notice': 'ミュート中',
+		'about.notice': 'これは何？',
+		'launchpad.notice': '踊りが変わるよ！',
 		'explore.notice.pc': 'ドラッグやスクロールしてね！',
 		'explore.notice.mobile': 'ピンチやスワイプしてね！',
 		'tapme.notice.pc': 'クリックしてね！',
