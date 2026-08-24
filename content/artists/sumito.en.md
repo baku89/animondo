@@ -1,6 +1,6 @@
 ---
 name: Sumito Sakakibara
-url: https://sumitosakakibara.com
+url: http://sumitosakakibara.com/
 source: https://animation.hiroshimafest.org/en/program/00001950/
 workTitle: Iizuna Fair
 workYear: 2021

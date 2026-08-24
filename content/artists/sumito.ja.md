@@ -1,6 +1,6 @@
 ---
 name: 榊原澄人
-url: https://sumitosakakibara.com
+url: http://sumitosakakibara.com/
 source: https://animation.hiroshimafest.org/program/00001929/
 workTitle: 飯綱縁日
 workYear: 2021
