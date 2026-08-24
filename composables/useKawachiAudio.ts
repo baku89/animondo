@@ -103,6 +103,10 @@ export function useKawachiAudio() {
 			source = null
 		},
 		waitForPlay: () => playPromise.promise,
+		/** Settled once the BGM is fetched and decoded — the loading gate
+		 * waits on it so the tap never has to. Rejects if no source could
+		 * be decoded, which the caller treats as a startup failure. */
+		whenLoaded: buffer.then(() => undefined),
 		hasStarted: readonly(hasStarted),
 		/** Seconds since playback began, monotonic — the piece's only clock */
 		elapsed: () => (startedAt === null ? 0 : context.currentTime - startedAt),

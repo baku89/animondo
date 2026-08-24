@@ -17,12 +17,23 @@ export interface SpriteDecoder {
 	height: number
 }
 
-/** Fetch, demux and configure one sprite. Throws where the browser cannot
- * decode it, so the caller can fall back before anything is committed. */
-export async function createSpriteDecoder(url: string): Promise<SpriteDecoder> {
-	const response = await fetch(url)
-	if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`)
-	const buffer = await response.arrayBuffer()
+/** Fetch (or take as handed), demux and configure one sprite. Throws where
+ * the browser cannot decode it, so the caller can fall back before anything
+ * is committed. A prefetched buffer skips the network — pass the bytes the
+ * loading screen already pulled (utils/preloadAssets); a detached one (its
+ * bytes transferred away) falls back to fetching. */
+export async function createSpriteDecoder(
+	url: string,
+	prefetched?: ArrayBuffer
+): Promise<SpriteDecoder> {
+	let buffer: ArrayBuffer
+	if (prefetched && prefetched.byteLength > 0) {
+		buffer = prefetched
+	} else {
+		const response = await fetch(url)
+		if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`)
+		buffer = await response.arrayBuffer()
+	}
 	const video = demuxMp4Video(buffer)
 
 	const config = {

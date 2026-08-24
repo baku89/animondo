@@ -22,14 +22,23 @@ interface Backend {
  *
  * Browsers without VideoDecoder fall back to the old <video> + seek path.
  */
-export function useVideoTextureArray(regl: Regl.Regl, videoSources: string[]) {
+export function useVideoTextureArray(
+	regl: Regl.Regl,
+	videoSources: string[],
+	prefetched?: ArrayBuffer[]
+) {
 	const textureArray = ref<Regl.Texture2D[]>([])
 	let backend: Backend | null = null
 
 	const load = async () => {
 		if (typeof VideoDecoder !== 'undefined') {
 			try {
-				backend = await loadCodecBackend(regl, videoSources, textureArray)
+				backend = await loadCodecBackend(
+					regl,
+					videoSources,
+					textureArray,
+					prefetched
+				)
 				return
 			} catch (error) {
 				console.warn('WebCodecs path failed, falling back to <video>', error)
@@ -61,7 +70,8 @@ interface CodecSprite extends SpriteDecoder {
 async function loadCodecBackend(
 	regl: Regl.Regl,
 	videoSources: string[],
-	textureArray: Ref<Regl.Texture2D[]>
+	textureArray: Ref<Regl.Texture2D[]>,
+	prefetched?: ArrayBuffer[]
 ): Promise<Backend> {
 	// One scratch canvas carries frames into regl; VideoFrame is not a pixel
 	// source regl recognises, but canvas is.
@@ -108,8 +118,11 @@ async function loadCodecBackend(
 	}
 
 	const sprites = await Promise.all(
-		videoSources.map(async (src): Promise<CodecSprite> => {
-			const decoder = await createSpriteDecoder('/animondo/' + src)
+		videoSources.map(async (src, index): Promise<CodecSprite> => {
+			const decoder = await createSpriteDecoder(
+				'/animondo/' + src,
+				prefetched?.[index]
+			)
 
 			// Prime frame 0 so the texture is born with real content
 			await ensureDecoded(decoder, 0)

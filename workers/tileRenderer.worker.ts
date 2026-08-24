@@ -34,7 +34,7 @@ interface WorkerSprite extends SpriteDecoder {
 }
 
 export type MainToWorker =
-	| {type: 'load'; sources: string[]}
+	| {type: 'load'; sources: string[]; buffers?: ArrayBuffer[]}
 	| {
 			type: 'start'
 			canvas: OffscreenCanvas
@@ -163,7 +163,7 @@ function ensureUploaded(sprite: WorkerSprite, frame: number): Promise<void> {
 	return sprite.chain
 }
 
-async function load(sources: string[]) {
+async function load(sources: string[], buffers?: ArrayBuffer[]) {
 	if (typeof VideoDecoder === 'undefined') {
 		ctx.postMessage({type: 'unsupported', reason: 'no VideoDecoder'})
 		return
@@ -175,8 +175,12 @@ async function load(sources: string[]) {
 
 	try {
 		sprites = await Promise.all(
-			sources.map(async (src): Promise<WorkerSprite> => {
-				const sprite = await createSpriteDecoder('/animondo/' + src)
+			sources.map(async (src, index): Promise<WorkerSprite> => {
+				// The loading screen already pulled the bytes; decode those
+				const sprite = await createSpriteDecoder(
+					'/animondo/' + src,
+					buffers?.[index]
+				)
 				// Prime frame 0 now, so 'start' can give the front textures
 				// real content without waiting on the decoders again
 				await decodeFrame(sprite, 0)
@@ -379,7 +383,7 @@ ctx.addEventListener('message', event => {
 	try {
 		switch (message.type) {
 			case 'load':
-				load(message.sources)
+				load(message.sources, message.buffers)
 				break
 			case 'start':
 				start(message)

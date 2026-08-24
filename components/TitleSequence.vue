@@ -16,16 +16,28 @@
 		<div class="title-sequence__stage">
 			<AnimondoTitle :leaving="started" @left="emit('done')" />
 			<!-- Nothing here can dance, so the same button leads to the
-				recording instead of to the piece. -->
+				recording instead of to the piece: the play glyph centred in
+				the hand-drawn YouTube frame (5:4, so the box widens past
+				`size`). -->
 			<div v-if="unsupported" class="title-sequence__offsite">
 				<CircleIcon
 					:glyph="PLAY_SHEET"
+					:outline="YOUTUBE_SHEET"
+					:aspect="1000 / 800"
 					size="clamp(3.5rem, 14vw, 8rem)"
 					state="fixed"
 					:label="t('tap.youtube')"
 					:href="YOUTUBE_URL"
+					:hover="linkHover"
 				/>
-				<a :href="YOUTUBE_URL" target="_blank" rel="noopener">
+				<!-- Pointing at the caption lights the icon up too -->
+				<a
+					:href="YOUTUBE_URL"
+					target="_blank"
+					rel="noopener"
+					@pointerenter="linkHover = true"
+					@pointerleave="linkHover = false"
+				>
 					{{ t('tap.youtube') }}&thinsp;&#8599;
 				</a>
 				<p>{{ t('tap.unsupported') }}</p>
@@ -39,6 +51,15 @@
 				:label="t('tap.title')"
 				:leaving="started"
 				@left="playPresent = false"
+			/>
+			<!-- While the manifest downloads: the hand-drawn dots boil where
+				the button will land. The !ready guard keeps them from coming
+				back through this else-if once the tapped button has played
+				itself out (playPresent false, ready still true). -->
+			<div
+				v-else-if="!unsupported && !ready"
+				class="title-sequence__loading"
+				aria-hidden="true"
 			/>
 			<!-- Hand-drawn "tap/click to play" under the button — decorative,
 				the button's label already says it. Coarse pointers tap. -->
@@ -55,7 +76,8 @@
 <script setup lang="ts">
 import {useEventListener, useMediaQuery, useTimeoutFn} from '@vueuse/core'
 
-import {PLAY_SHEET} from '~/composables/useSpritePlayer'
+import {PLAY_SHEET, YOUTUBE_SHEET} from '~/composables/useSpritePlayer'
+import {YOUTUBE_URL} from '~/utils/links'
 
 const props = withDefaults(
 	defineProps<{
@@ -66,9 +88,6 @@ const props = withDefaults(
 	}>(),
 	{unsupported: false}
 )
-
-// The recording, for visitors whose browser cannot run the piece itself
-const YOUTUBE_URL = 'https://www.youtube.com/watch?v=REPLACE_WITH_VIDEO_ID'
 
 const emit = defineEmits<{(e: 'start' | 'done'): void}>()
 
@@ -96,20 +115,30 @@ watch(
 
 // The hint appears the instant `ready` flips; without a preload its boil
 // frames would trickle in piecemeal. Both languages: the switch sits right
-// on this screen.
+// on this screen. The loading dots ride the same list — they are the very
+// first thing on screen, ahead of the manifest they narrate.
 useHead(() => ({
-	link: [0, 1, 2, 3].flatMap(i =>
-		(['en', 'ja'] as const).map(lang => ({
+	link: [
+		...[0, 1, 2, 3].flatMap(i =>
+			(['en', 'ja'] as const).map(lang => ({
+				rel: 'preload',
+				as: 'image' as const,
+				href: `/animondo/label/${
+					isCoarsePointer.value ? 'tap' : 'click'
+				}-to-play_${lang}_${i}.webp`,
+			}))
+		),
+		...[0, 1, 2, 3, 4, 5, 6, 7, 8].map(i => ({
 			rel: 'preload',
 			as: 'image' as const,
-			href: `/animondo/label/${
-				isCoarsePointer.value ? 'tap' : 'click'
-			}-to-play_${lang}_${i}.webp`,
-		}))
-	),
+			href: `/animondo/loading/loading_${i}.webp`,
+		})),
+	],
 }))
 
 const started = ref(false)
+// The caption link under the YouTube icon, mirrored into the icon's hover
+const linkHover = ref(false)
 // Kept mounted after the tap so the drawn exit can play itself out
 const playPresent = ref(true)
 
@@ -187,6 +216,21 @@ useEventListener('keydown', (event: KeyboardEvent) => {
 		left 50%
 		translate -50% 0
 
+	// The wait, drawn: the dots boil where the play button will land
+	// (326x232, 12 fps, 9F loop — scripts/build-loading-frames.sh).
+	// Centred on the coming button's own centre (its top + half its clamp
+	// height), so the handover doesn't hop.
+	&__loading
+		position absolute
+		top calc(100% + 2rem + clamp(3.5rem, 14vw, 8rem) / 2)
+		left 50%
+		translate -50% -50%
+		width clamp(3.5rem, 12vw, 5rem)
+		aspect-ratio 326 / 232
+		background center / contain no-repeat
+		animation title-loading-boil 0.75s steps(1) infinite
+		pointer-events none
+
 	// The hand-drawn hint, quietly under the button (387x122, 12 fps, 4F
 	// boil — scripts/build-label-frames.sh). Sized so its ink weight sits
 	// near the tooltip's, and dimmed: it whispers what the button already is.
@@ -250,6 +294,26 @@ useEventListener('keydown', (event: KeyboardEvent) => {
 		opacity 0.55
 	to
 		opacity 0
+
+@keyframes title-loading-boil
+	0%
+		background-image url('/animondo/loading/loading_0.webp')
+	11.111%
+		background-image url('/animondo/loading/loading_1.webp')
+	22.222%
+		background-image url('/animondo/loading/loading_2.webp')
+	33.333%
+		background-image url('/animondo/loading/loading_3.webp')
+	44.444%
+		background-image url('/animondo/loading/loading_4.webp')
+	55.556%
+		background-image url('/animondo/loading/loading_5.webp')
+	66.667%
+		background-image url('/animondo/loading/loading_6.webp')
+	77.778%
+		background-image url('/animondo/loading/loading_7.webp')
+	88.889%
+		background-image url('/animondo/loading/loading_8.webp')
 
 @keyframes title-hint-click-en
 	0%

@@ -21,6 +21,9 @@ export interface FrameProps {
 export interface TileRendererOptions {
 	frag: string
 	sources: string[]
+	/** The sprites' bytes, already pulled by the loading screen — decoded
+	 * instead of fetched again. The worker backend transfers them away. */
+	spriteBuffers?: ArrayBuffer[]
 	tileMapWidth: number
 	tileMapHeight: number
 	/** The renderer died after setup (a worker crash, a lost context) */
@@ -108,7 +111,14 @@ async function createWorkerBackend(
 	// and an 'unsupported' here still leaves the canvas free for the
 	// main-thread backend.
 	const loadReply = nextReply(['loaded', 'unsupported'])
-	post({type: 'load', sources: options.sources})
+	worker.postMessage(
+		{
+			type: 'load',
+			sources: options.sources,
+			buffers: options.spriteBuffers,
+		} satisfies MainToWorker,
+		options.spriteBuffers ?? []
+	)
 	const loaded = await loadReply
 	if (loaded.type === 'unsupported') {
 		worker.terminate()
@@ -188,7 +198,13 @@ async function createMainBackend(
 		},
 	})
 
-	const videoTextures = useVideoTextureArray(regl, options.sources)
+	// The prefetched bytes may have been transferred away by a worker
+	// attempt; createSpriteDecoder treats a detached buffer as absent
+	const videoTextures = useVideoTextureArray(
+		regl,
+		options.sources,
+		options.spriteBuffers
+	)
 	await videoTextures.load()
 
 	const tileMapTexture = regl.texture({
