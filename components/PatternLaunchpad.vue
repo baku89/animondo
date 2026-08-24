@@ -864,6 +864,14 @@ $pad-orange = #ff6a00
 	// darken, unlike multiply, keeps the family colours from muddying where
 	// they cross the ink.)
 	mix-blend-mode darken
+
+	// Touch screens skip the blend: on iOS, darken over the WebGL stage
+	// forces a full-viewport offscreen composite every frame — the main
+	// suspect for pads-mode's cost there. The frames ride above the ink
+	// instead; with the resting grid already paled to grey, the
+	// difference stays subtle.
+	@media (hover: none)
+		mix-blend-mode normal
 	display grid
 	grid-template-columns repeat(3, 1fr)
 	grid-template-rows repeat(5, 1fr)
@@ -930,28 +938,12 @@ $pad-orange = #ff6a00
 	// them away) — pale the black ink to grey so the standing grid reads
 	// as scenery behind the dancers. A lit pad's colour set still shows
 	// at full strength (its rule outranks this one).
-	//
-	// And the resting frames stand STILL: their 12 fps boil had iOS
-	// repainting fourteen pads' border-images every 83ms for as long as
-	// the grid stood — and rasterising all four plies of every set on
-	// entry, where only one is ever seen (the paused phase, set by each
-	// ply's negative delay, holds exactly the first ply visible). Only
-	// the dancing pad's drawing stays alive — the lit frame, the beat's
-	// flash and the closed-mode ghost run their boils as ever.
+	// (Tried and reverted: pausing the resting boils via
+	// animation-play-state made iOS WORSE — paused animations stay in
+	// WebKit's animation machinery, they only stop advancing.)
 	@media (hover: none)
 		&__frame-set--black
 			opacity 0.35
-
-		&__ply,
-		&__sheet
-			animation-play-state paused
-
-		&__frame--lit &__ply,
-		&__face--flash &__ply,
-		&__face--flash &__sheet,
-		&__pad--ghost &__ply,
-		&__pad--ghost &__sheet
-			animation-play-state running
 
 	&__pad
 		position relative
