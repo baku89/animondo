@@ -11,7 +11,7 @@
 			v-if="aboutVisible && aboutButtonShown"
 			class="about-button"
 			:glyph="ABOUT_SHEET"
-			size="clamp(3rem, 10vw, 6rem)"
+			size="clamp(4rem, 15vw, 6rem)"
 			:state="aboutOpen ? 'close' : 'about'"
 			:label="aboutOpen ? t('about.close') : t('about.button.label')"
 			:leaving="launchpadOpen"
@@ -22,7 +22,7 @@
 			v-if="soundVisible && soundButtonShown"
 			class="sound-button"
 			:glyph="SOUND_SHEET"
-			size="clamp(3rem, 10vw, 6rem)"
+			size="clamp(4rem, 15vw, 6rem)"
 			:state="audio.muted.value ? 'mute' : 'unmute'"
 			:label="audio.muted.value ? t('sound.unmute') : t('sound.mute')"
 			:leaving="launchpadOpen"
@@ -35,27 +35,39 @@
 			@left="soundTipVisible = false"
 		/>
 		<ExploreTooltip
-			v-if="exploreTipCell && exploreTipAt"
-			:leaving="exploreTipLeaving"
-			:style="exploreTipStyle"
-			@left="exploreTipCell = null"
+			v-if="exploreTip.cell && exploreTip.at"
+			:leaving="exploreTip.leaving"
+			:style="exploreTip.style"
+			@left="exploreTip.onLeft"
+		/>
+		<TapTooltip
+			v-if="tapTip.cell && tapTip.at"
+			:leaving="tapTip.leaving"
+			:style="tapTip.style"
+			@left="tapTip.onLeft"
 		/>
 		<CircleIcon
 			v-if="launchpadButtonVisible"
 			class="launchpad-button"
 			:glyph="PADS_SHEET"
-			size="clamp(3rem, 10vw, 6rem)"
+			size="clamp(4rem, 15vw, 6rem)"
 			:state="launchpadOpen ? 'close' : 'fixed'"
 			:label="launchpadOpen ? t('launchpad.close') : t('launchpad.open')"
 			@click="toggleLaunchpad"
 		/>
-		<PatternLaunchpad
-			v-if="launchpadOpen"
-			:queued-pad="patternControl.queuedPadId.value"
-			:active-pad="patternControl.activePadId.value"
-			:activation-seq="patternControl.activationSeq.value"
-			@tap="patternControl.tapPad"
-		/>
+		<!-- The leave duration covers the pads' staggered collapse; entering
+			needs no classes, the pads' own mount animations carry it -->
+		<Transition name="launchpad" :duration="{enter: 0, leave: 500}">
+			<PatternLaunchpad
+				v-if="launchpadOpen"
+				:queued-pad="patternControl.queuedPadId.value"
+				:active-pad="patternControl.activePadId.value"
+				:activation-seq="patternControl.activationSeq.value"
+				:beat-seq="beatSeq"
+				@tap="patternControl.tapPad"
+				@close="launchpadOpen = false"
+			/>
+		</Transition>
 		<AboutModal :open="aboutOpen" @close="aboutOpen = false" />
 		<canvas
 			ref="canvas"
@@ -154,6 +166,7 @@ import {ARTISTS} from '~/utils/artists'
 import {BEAT_TIMES} from '~/utils/beats'
 import type {MovePattern} from '~/utils/patterns'
 import * as Patterns from '~/utils/patterns'
+import {preloadAssets} from '~/utils/preloadAssets'
 import {Direction, moveToTileDisplay} from '~/utils/tile'
 import {tileCenter} from '~/utils/tileCenters'
 import {TileMap} from '~/utils/TileMap'
@@ -229,106 +242,210 @@ watch(startupFailed, failed => {
 	if (failed) soundTipLeaving.value = true
 })
 
-// --- "Explore" tooltip ---
+// Initialize ZUI for navigation — ahead of the explore tooltip below, which
+// registers its onNavigate listener the moment setup reaches it
+const zui = useZUI(canvas)
 
-// Two turns after the stage unlocks, a dancer near the centre of the
-// screen pipes up with the navigation hint (drag and scroll — pinch and
-// swipe for coarse pointers), and falls quiet three seconds later. Any tap
-// or opened panel dismisses it early: the visitor is already exploring.
-const EXPLORE_TIP_FRAME = 48
-const exploreTipCell = ref<[number, number] | null>(null)
-const exploreTipLeaving = ref(false)
-// The speaker's drawn centre in screen px, refreshed every drawn frame
-const exploreTipAt = ref<[number, number] | null>(null)
+// --- Dancer hints (explore / tap-me) ---
 
-const exploreTipStyle = computed<Record<string, string>>(() => {
-	const at = exploreTipAt.value
-	if (!at) return {}
-	// The component turns the point into its own placement (tail-tip maths)
-	return {'--speaker-x': `${at[0]}px`, '--speaker-y': `${at[1]}px`}
-})
+// Hand-drawn hint bubbles a dancer speaks. Each hint is a relay: a speaker
+// holds the bubble six seconds — less if it vanishes, dances off the
+// screen's edge, or a tap or an opened panel hushes it — and after a beat
+// of quiet another dancer somewhere on screen takes it up, until stop()
+// says the lesson has landed. `avoid` reports the other hint's speaker so
+// two bubbles up at once keep their distance.
+function createDancerHint(avoid: () => [number, number] | null) {
+	const cell = ref<[number, number] | null>(null)
+	const leaving = ref(false)
+	// The speaker's drawn centre in screen px, refreshed every drawn frame
+	const at = ref<[number, number] | null>(null)
+	let stopped = false
 
-const {start: expireExploreTip} = useTimeoutFn(
-	() => (exploreTipLeaving.value = true),
-	3000,
-	{immediate: false}
-)
+	const style = computed<Record<string, string>>(() => {
+		if (!at.value) return {}
+		// The component turns the point into its own placement (tail-tip maths)
+		return {
+			'--speaker-x': `${at.value[0]}px`,
+			'--speaker-y': `${at.value[1]}px`,
+		}
+	})
 
-function revealExploreTip() {
-	if (!tileMap || selection.value || aboutOpen.value || launchpadOpen.value) {
-		return
+	// Each speaker holds the hint this long at most
+	const {start: expire} = useTimeoutFn(() => (leaving.value = true), 6000, {
+		immediate: false,
+	})
+
+	// The beat of quiet before the next dancer takes the hint up — also the
+	// retry pace while the stage is busy (a profile bubble or a panel open)
+	const {start: queue} = useTimeoutFn(() => speak(), 1500, {immediate: false})
+
+	function speak() {
+		// The lesson landed: the relay's work is done, let it die out
+		if (stopped || !tileMap) return
+
+		// Busy stage (a profile bubble, a panel): hold the hint and try again
+		if (selection.value || aboutOpen.value || launchpadOpen.value) {
+			queue()
+			return
+		}
+
+		// A random spot in the screen's middle band — the balloon needs its
+		// room up-right of the speaker — then the dancer drawn nearest to it.
+		// A pick crowding the other hint's bubble is retried, so the two
+		// spread out; the last attempt takes what it gets.
+		const vw = window.innerWidth
+		const vh = window.innerHeight
+		const clearance = Math.min(vw, vh) * 0.35
+		let pick: [number, number] | null = null
+		for (let attempt = 0; attempt < 6 && !pick; attempt++) {
+			const world = zui.screenToWorld(
+				vw * (0.25 + Math.random() * 0.5),
+				vh * (0.35 + Math.random() * 0.45)
+			)
+			const [px, py] = [Math.floor(world[0]), Math.floor(world[1])]
+			let best:
+				| {cell: [number, number]; centre: [number, number]; d: number}
+				| null = null
+			for (let dy = -1; dy <= 1; dy++) {
+				for (let dx = -1; dx <= 1; dx++) {
+					const candidate: [number, number] = [px + dx, py + dy]
+					const centre = dancerCenter(candidate)
+					if (!centre) continue
+					const d = Math.hypot(centre[0] - world[0], centre[1] - world[1])
+					if (!best || d < best.d) best = {cell: candidate, centre, d}
+				}
+			}
+			if (!best) continue
+
+			const other = avoid()
+			if (other && attempt < 5) {
+				const here = zui.worldToScreen(best.centre)
+				if (Math.hypot(here[0] - other[0], here[1] - other[1]) < clearance) {
+					continue
+				}
+			}
+			pick = best.cell
+		}
+		// A silent stage right now; the relay knocks again shortly
+		if (!pick) {
+			queue()
+			return
+		}
+
+		leaving.value = false
+		cell.value = pick
+		expire()
 	}
 
-	// The balloon hangs up-right of its speaker, so aim a touch below and
-	// left of the screen's centre and take the dancer drawn nearest that
-	const world = zui.screenToWorld(
-		window.innerWidth * 0.45,
-		window.innerHeight * 0.6
-	)
-	const [px, py] = [Math.floor(world[0]), Math.floor(world[1])]
-	let best: {cell: [number, number]; d: number} | null = null
-	for (let dy = -1; dy <= 1; dy++) {
-		for (let dx = -1; dx <= 1; dx++) {
-			const candidate: [number, number] = [px + dx, py + dy]
-			const centre = dancerCenter(candidate)
-			if (!centre) continue
-			const d = Math.hypot(centre[0] - world[0], centre[1] - world[1])
-			if (!best || d < best.d) best = {cell: candidate, d}
+	/** Play the current bubble out; the relay carries on afterwards */
+	function dismiss() {
+		if (cell.value) leaving.value = true
+	}
+
+	/** The lesson landed: no speaker after the current one */
+	function stop() {
+		stopped = true
+		dismiss()
+	}
+
+	// The bubble has played itself out: clear the speaker and pass it on
+	function onLeft() {
+		cell.value = null
+		at.value = null
+		if (!stopped) queue()
+	}
+
+	// The speaker keeps dancing: step its cell along the pattern's out at
+	// each turn (called right before nextStep, like advanceSelection), and
+	// let the bubble go if the dancer vanishes.
+	function advance() {
+		if (!cell.value || !tileMap) return
+		const move = tileMap.currentPattern?.get(cell.value[0], cell.value[1])
+		const delta = move ? DIRECTION_DELTA[move.out] : undefined
+		if (!delta) {
+			leaving.value = true
+			return
+		}
+		cell.value = [cell.value[0] + delta[0], cell.value[1] + delta[1]]
+	}
+
+	// Chase the ink, not the cell: the drawn centres move every frame, and
+	// the camera may be panning under the bubble
+	function update() {
+		if (!cell.value) return
+		const centre = dancerCenter(cell.value)
+		if (!centre) return
+		const here = zui.worldToScreen(centre) as [number, number]
+		at.value = here
+
+		// The speaker has danced off the paper's edge — a bubble pointing at
+		// nothing helps nobody, so pass the hint to a dancer still on screen
+		if (
+			!leaving.value &&
+			(here[0] < 0 ||
+				here[0] > window.innerWidth ||
+				here[1] < 0 ||
+				here[1] > window.innerHeight)
+		) {
+			leaving.value = true
 		}
 	}
-	if (!best) return
 
-	exploreTipLeaving.value = false
-	exploreTipCell.value = best.cell
-	expireExploreTip()
+	// Reactive so the template reads .cell/.at/.style without .value
+	return reactive({
+		cell,
+		leaving,
+		at,
+		style,
+		speak,
+		dismiss,
+		stop,
+		onLeft,
+		advance,
+		update,
+	})
 }
 
-// The speaker keeps dancing: step its cell along the pattern's out at each
-// turn (called right before nextStep, like advanceSelection), and let the
-// bubble go if the dancer vanishes.
-function advanceExploreTip() {
-	const cell = exploreTipCell.value
-	if (!cell || !tileMap) return
+// The two hints run side by side, each on its own relay: the navigation
+// hint (drag and scroll — pinch and swipe for coarse pointers) opens two
+// turns after the stage unlocks, the tap-me hint a few seconds behind it.
+// Each ends on its own gesture — the first pan or zoom silences the
+// explore hint, the first tapped dancer the tap-me one — and a gesture
+// made before a relay starts means that relay never runs.
+const EXPLORE_TIP_FRAME = 48
+const exploreTip = createDancerHint(tapSpeakerAt)
+const tapTip = createDancerHint(exploreSpeakerAt)
 
-	const move = tileMap.currentPattern?.get(cell[0], cell[1])
-	const delta = move ? DIRECTION_DELTA[move.out] : undefined
-	if (!delta) {
-		exploreTipLeaving.value = true
-		return
-	}
-	exploreTipCell.value = [cell[0] + delta[0], cell[1] + delta[1]]
+// Function declarations, so the two `avoid` closures above may cross-refer
+function tapSpeakerAt() {
+	return tapTip.at
+}
+function exploreSpeakerAt() {
+	return exploreTip.at
 }
 
-// Chase the ink, not the cell: the drawn centres move every frame, and the
-// camera may be panning under the bubble
-function updateExploreTip() {
-	const cell = exploreTipCell.value
-	if (!cell) return
-	const centre = dancerCenter(cell)
-	if (centre) {
-		exploreTipAt.value = zui.worldToScreen(centre) as [number, number]
-	}
-}
+const {start: startTapTipSoon} = useTimeoutFn(() => tapTip.speak(), 3000, {
+	immediate: false,
+})
+
+zui.onNavigate(() => {
+	exploreTip.stop()
+})
 
 // --- Pattern launchpad (mobile only) ---
 
-// A full-screen grid of pads that queue patterns by touch. Coarse pointers
-// only: on desktop the keyboard already plays this instrument.
+// A full-screen grid of pads that queue patterns by touch. Meant for coarse
+// pointers only (on desktop the keyboard already plays this instrument) —
+// but every pointer gets it for now, while the pad UI is being tuned.
+// TODO: restore `isCoarsePointer.value &&` once the pads are settled.
 const isCoarsePointer = useMediaQuery('(pointer: coarse)')
 const launchpadRevealed = ref(false)
 const launchpadOpen = ref(false)
-const launchpadButtonVisible = computed(
-	() => isCoarsePointer.value && launchpadRevealed.value
-)
+const launchpadButtonVisible = computed(() => launchpadRevealed.value)
 
-// The pads' button follows the ? as its own beat, like the sound toggle did
-const {start: revealLaunchpad} = useTimeoutFn(
-	() => (launchpadRevealed.value = true),
-	1000,
-	{immediate: false}
-)
+// The pads' button arrives on the ?'s beat, the two drawing in together
 watch(aboutVisible, visible => {
-	if (visible) revealLaunchpad()
+	if (visible) launchpadRevealed.value = true
 })
 
 // While the launchpad is open it owns the screen: the other buttons play
@@ -351,10 +468,13 @@ function toggleLaunchpad() {
 	}
 }
 
-// A panel over the stage silences the explore hint with it (declared here,
+// A panel over the stage silences the dancer hints with it (declared here,
 // after both refs exist)
 watch([aboutOpen, launchpadOpen], ([about, pads]) => {
-	if ((about || pads) && exploreTipCell.value) exploreTipLeaving.value = true
+	if (about || pads) {
+		exploreTip.dismiss()
+		tapTip.dismiss()
+	}
 })
 
 let renderer: TileRenderer | null = null
@@ -363,9 +483,6 @@ let tileMap: TileMap | null = null
 // The drawn size follows the element; the backing store is set from it
 // (times devicePixelRatio) on every rendered frame, whichever thread draws
 const {width: canvasWidth, height: canvasHeight} = useElementSize(canvas)
-
-// Initialize ZUI for navigation
-const zui = useZUI(canvas)
 
 let currentFrame = 0
 
@@ -402,13 +519,14 @@ const workCaption = computed(() => {
 const FOCUS_DIM = 0.98
 let focusDim = 0
 
-// The crayon veil (public/fade-mask.webp) tiles at HALF the master's size
-// in CSS pixels (the master is drawn at 2x for HiDPI); the texture itself
-// is squeezed to 1024x512 for WebGL1's power-of-two repeat, so the scale
-// stretches it back. Its offset re-rolls every 12 fps tick — the same
-// hash-from-a-sine trick shaders use, keyed to the tick so every rendered
-// frame within one tick agrees.
-const FADE_MASK_TILE = [1136.5, 727.5]
+// The crayon veil (public/fade-mask.webp) tiles at a QUARTER of the
+// master's size in CSS pixels — half of the 2x-for-HiDPI scale, shrunk once
+// more because the grain read too coarse. The texture itself is squeezed to
+// 1024x512 for WebGL1's power-of-two repeat, so the scale stretches it
+// back. Its offset re-rolls every 12 fps tick — the same hash-from-a-sine
+// trick shaders use, keyed to the tick so every rendered frame within one
+// tick agrees. Keep AboutModal.vue and PatternLaunchpad.vue in step.
+const FADE_MASK_TILE = [568.25, 363.75]
 
 function grainRoll(seed: number): number {
 	const x = Math.sin(seed) * 43758.5453
@@ -460,7 +578,7 @@ const bubbleCharAt = ref<[number, number]>([0, 0])
 /** How close to a bubble corner the tail's centre may slide */
 const TAIL_INSET = 44
 /** Border-image band width; the tail is positioned inside the padding box */
-const BUBBLE_BORDER = 16
+const BUBBLE_BORDER = 24
 // Measured on enter; the left/right layouts need it to clamp the box into
 // the viewport without a translate(-50%) (height is fit-content)
 const bubbleHeight = ref(0)
@@ -496,21 +614,40 @@ useHead({
 	],
 })
 
-// The explore labels follow the pointer's kind, so their preload is
+// The hint labels follow the pointer's kind, so their preload is
 // reactive — only the four frames per language this device will show
 useHead(() => ({
 	link: [0, 1, 2, 3].flatMap(i =>
-		(['en', 'ja'] as const).map(lang => ({
-			rel: 'preload',
-			as: 'image' as const,
-			href: `/animondo/tooltip/explore_${
-				isCoarsePointer.value ? 'mobile' : 'pc'
-			}_${lang}_${i}.webp`,
-		}))
+		(['en', 'ja'] as const).flatMap(lang => [
+			{
+				rel: 'preload',
+				as: 'image' as const,
+				href: `/animondo/tooltip/explore_${
+					isCoarsePointer.value ? 'mobile' : 'pc'
+				}_${lang}_${i}.webp`,
+			},
+			{
+				rel: 'preload',
+				as: 'image' as const,
+				href: `/animondo/tooltip/${
+					isCoarsePointer.value ? 'tap-me' : 'click-me'
+				}_${lang}_${i}.webp`,
+			},
+		])
 	),
 }))
 
 const {width: winWidth, height: winHeight} = useWindowSize()
+
+// On coarse pointers the launchpad button owns the bottom-left corner, so
+// the bubble may not run under the button row: 1rem inset + the button's
+// CSS size (clamp(4rem, 15vw, 6rem)) + a breath of air. Desktop keeps the
+// slim margin — nothing lives down there.
+const bubbleBottomClearance = computed(() => {
+	if (!isCoarsePointer.value) return BUBBLE_BOTTOM_CLEARANCE
+	const button = clamp(winWidth.value * 0.15, 64, 96)
+	return 16 + button + 8
+})
 
 // Half of the on-screen footprint reserved for the character, zoom-aware
 const charHalf = computed(() =>
@@ -544,7 +681,7 @@ const characterAnchor = computed<[number, number]>(() => {
 			const y = clamp(
 				charY,
 				BUBBLE_TOP_CLEARANCE + TAIL_INSET,
-				vh - BUBBLE_BOTTOM_CLEARANCE - TAIL_INSET
+				vh - bubbleBottomClearance.value - TAIL_INSET
 			)
 			// The side was only chosen with BUBBLE_MIN_WIDTH of side space on
 			// the whole screen (see onTap), so these bounds cannot cross
@@ -583,7 +720,7 @@ const characterAnchor = computed<[number, number]>(() => {
 							charY,
 							BUBBLE_TOP_CLEARANCE + half,
 							Math.max(
-								vh - BUBBLE_BOTTOM_CLEARANCE - minHeight - gap - half,
+								vh - bubbleBottomClearance.value - minHeight - gap - half,
 								BUBBLE_TOP_CLEARANCE + half
 							)
 						)
@@ -591,9 +728,9 @@ const characterAnchor = computed<[number, number]>(() => {
 							charY,
 							Math.min(
 								BUBBLE_TOP_CLEARANCE + minHeight + gap + half,
-								vh - BUBBLE_BOTTOM_CLEARANCE - half
+								vh - bubbleBottomClearance.value - half
 							),
-							vh - BUBBLE_BOTTOM_CLEARANCE - half
+							vh - bubbleBottomClearance.value - half
 						)
 			return [x, y]
 		}
@@ -631,7 +768,7 @@ const bubbleStyle = computed<Record<string, string>>(() => {
 			return {
 				...common,
 				top: `${edge}px`,
-				maxHeight: `${vh - BUBBLE_BOTTOM_CLEARANCE - edge}px`,
+				maxHeight: `${vh - bubbleBottomClearance.value - edge}px`,
 			}
 		}
 		const edge = ay - half - bubbleGap.value
@@ -652,7 +789,7 @@ const bubbleStyle = computed<Record<string, string>>(() => {
 			side === 'right' ? vw - BUBBLE_MARGIN - edge : edge - BUBBLE_MARGIN,
 			BUBBLE_MAX_WIDTH
 		)}px`,
-		maxHeight: `${vh - BUBBLE_TOP_CLEARANCE - BUBBLE_BOTTOM_CLEARANCE}px`,
+		maxHeight: `${vh - BUBBLE_TOP_CLEARANCE - bubbleBottomClearance.value}px`,
 	}
 
 	// Height is fit-content, so sliding the box needs the measured height;
@@ -666,7 +803,7 @@ const bubbleStyle = computed<Record<string, string>>(() => {
 	const top = clamp(
 		ay - height / 2,
 		BUBBLE_TOP_CLEARANCE,
-		Math.max(vh - BUBBLE_BOTTOM_CLEARANCE - height, BUBBLE_TOP_CLEARANCE)
+		Math.max(vh - bubbleBottomClearance.value - height, BUBBLE_TOP_CLEARANCE)
 	)
 	const tail = clamp(ay - top, TAIL_INSET, height - TAIL_INSET)
 	return {
@@ -876,8 +1013,12 @@ function tickFrame(isLast: boolean) {
 
 	const frame = currentFrame % 8
 	if (frame === 0 && currentFrame > 0) {
+		// The launchpad pulses here — with the turn the visitor SEES change,
+		// on the visuals' shifted clock, not the tapped grid's raw one
+		beatSeq.value++
 		advanceSelection()
-		advanceExploreTip()
+		exploreTip.advance()
+		tapTip.advance()
 		tileMap?.nextStep()
 		verifySelection()
 		if (isLast) {
@@ -897,15 +1038,18 @@ function tickFrame(isLast: boolean) {
 		})
 	}
 
-	// End of turn 4: the rings are in place — hand the stage over
+	// The moment turn 5 begins (the four rings have formed): the stage is
+	// handed over, and the ? and the pads arrive together on the same beat
 	if (currentFrame === 32) {
 		stageInteractive.value = true
 		aboutVisible.value = true
 	}
 
-	// Two turns into free play, a dancer offers the navigation hint
+	// Two turns into free play the explore hint speaks up, with the tap-me
+	// hint clearing its throat a few seconds behind it
 	if (currentFrame === EXPLORE_TIP_FRAME) {
-		revealExploreTip()
+		exploreTip.speak()
+		startTapTipSoon()
 	}
 
 	updateFollowTarget()
@@ -914,8 +1058,9 @@ function tickFrame(isLast: boolean) {
 useRafFn(() => {
 	advanceBeatClock()
 	renderFrame()
-	// After the camera settles: the hint bubble rides its dancer
-	updateExploreTip()
+	// After the camera settles: the hint bubbles ride their dancers
+	exploreTip.update()
+	tapTip.update()
 })
 
 // --- Beat-sync tuning & debugging ---
@@ -941,6 +1086,10 @@ const FRAME_SLOT =
 // other. Off by default; ?beat turns it on.
 const beatDebug = searchParams.has('beat')
 const beatFlash = ref(false)
+// Ticks once per visible turn — the instant a new pattern is applied — for
+// anything that dances along (the launchpad's queued pad pulses with it).
+// Bumped in tickFrame, so it lives on the visuals' shifted clock.
+const beatSeq = ref(0)
 const {start: hideBeatFlash} = useTimeoutFn(
 	() => (beatFlash.value = false),
 	100,
@@ -1056,8 +1205,9 @@ watch(zui.followTarget, target => {
 zui.onTap((clientX, clientY) => {
 	if (!tileMap || !audio.hasStarted.value || !stageInteractive.value) return
 
-	// Whatever this tap does, the visitor is exploring — the hint is done
-	if (exploreTipCell.value) exploreTipLeaving.value = true
+	// Whatever this tap does, the current hint bubbles have been heard
+	exploreTip.dismiss()
+	tapTip.dismiss()
 
 	// Light dismiss: while a bubble is open, the first tap anywhere only
 	// closes it — even when it lands on another character. Selecting that
@@ -1107,6 +1257,9 @@ zui.onTap((clientX, clientY) => {
 	// Pin where the dancer stands right now: characterAnchor starts the
 	// camera's travel from here and moves it no farther than the bubble needs
 	bubbleCharAt.value = zui.worldToScreen(centre) as [number, number]
+
+	// A dancer got tapped: the tap-me hint's lesson has landed for good
+	tapTip.stop()
 
 	selection.value = {
 		cell,
@@ -1179,6 +1332,21 @@ onScopeDispose(() => renderer?.dispose())
 async function init(canvasElement: HTMLCanvasElement) {
 	renderer?.dispose()
 
+	// The title's own art comes before everything: nothing heavy starts
+	// until its ink is up. (The audio's fetch has already left — it starts
+	// with the composable — but at 0.3MB the title still wins the race.)
+	await new Promise<void>(resolve => {
+		const title = new Image()
+		title.onload = () => resolve()
+		// A missing title is the title component's problem, not the gate's
+		title.onerror = () => resolve()
+		title.src = '/animondo/title-sprite.webp'
+	})
+
+	// Then the whole manifest, behind the title screen's loading dots. The
+	// sprites' bytes come back here for the renderer to decode.
+	const spriteBuffers = await preloadAssets()
+
 	// Sprite order follows ARTISTS so the index the tile map stores keeps
 	// addressing the same artist. Laura and Lucija may rejoin later — adding
 	// them to ARTIST_IDS pulls their sprite in too, but the shader still
@@ -1186,6 +1354,7 @@ async function init(canvasElement: HTMLCanvasElement) {
 	renderer = await createTileRenderer(canvasElement, {
 		frag: TileFragmentShader,
 		sources: ARTISTS.map(({id}) => `sprites/${id}.mp4`),
+		spriteBuffers,
 		tileMapWidth: Patterns.size.width,
 		tileMapHeight: Patterns.size.height,
 		onError: startupError,
@@ -1214,12 +1383,20 @@ async function init(canvasElement: HTMLCanvasElement) {
 		for (let i = 1; i <= 4; i++) {
 			yield Patterns.radialMask(Patterns.clockwise, i)
 		}
-		yield Patterns.clockwise
-		yield Patterns.counterClockwise
-		yield Patterns.right
-		yield Patterns.down
-		yield Patterns.left
-		yield Patterns.up
+		// The back half of the choreography cedes the floor the moment the
+		// launchpad opens (possible from turn 5): entering pad mode is an
+		// explicit ask to steer NOW, not after the sweeps play out
+		for (const pattern of [
+			Patterns.clockwise,
+			Patterns.counterClockwise,
+			Patterns.right,
+			Patterns.down,
+			Patterns.left,
+			Patterns.up,
+		]) {
+			if (launchpadOpen.value) break
+			yield pattern
+		}
 
 		// From here the piece drifts on its own; the keyboard can borrow
 		// the floor. takePattern() is only read at a step boundary, so
@@ -1233,10 +1410,11 @@ async function init(canvasElement: HTMLCanvasElement) {
 	// before the first tick renders it
 	renderer.setTileMapPixels(tileMap.pixels)
 
-	// Only invite the visitor in once the sprites are decoded and the
-	// typefaces have settled, so the button never lands over a half-drawn
-	// stage. Fonts get a deadline: a Typekit outage should not leave the
-	// page with no way to start.
+	// Only invite the visitor in once everything is truly in hand — the
+	// music decoded (a rejection here is a startup failure: the piece has
+	// no clock without it) and the typefaces settled. Fonts get a deadline:
+	// a Typekit outage should not leave the page with no way to start.
+	await audio.whenLoaded
 	await Promise.race([
 		document.fonts?.ready ?? Promise.resolve(),
 		new Promise(resolve => setTimeout(resolve, 5000)),
@@ -1249,8 +1427,21 @@ async function init(canvasElement: HTMLCanvasElement) {
 	// automaton — which scrambled the appear/vanish bridges.
 }
 
+// The crawlers' copy of this metadata is static and bilingual — see
+// nuxt.config.ts. At runtime it follows the chosen language, for the tab
+// and for crawlers that do run JS.
 useSeoMeta({
-	title: 'Animondo',
+	// The chosen language leads; the other name stays for recognition
+	title: () =>
+		locale.value === 'ja' ? 'アニm音頭 | Animondo' : 'Animondo | アニm音頭',
+	description: () => t('meta.description'),
+	ogTitle: () =>
+		locale.value === 'ja' ? 'アニm音頭 | Animondo' : 'Animondo | アニm音頭',
+	ogDescription: () => t('meta.description'),
+})
+
+useHead({
+	htmlAttrs: {lang: locale},
 })
 </script>
 
@@ -1327,11 +1518,15 @@ main
 	position fixed
 	z-index 15
 	padding 0.5rem 0.75rem
+	// The bio may scroll, but no double-tap zoom (pinch is refused app-wide
+	// in app.vue)
+	touch-action pan-y
 	// Hand-drawn frame: one square drawing carries the four corners, the
 	// repeating edges and the white fill (border-image-slice `fill`). The
-	// source is 1024px with 128px slices shown at 16px, so a 2x screen still
-	// samples it 4:1 — see scripts/build-bubble-samples.py for the contract.
-	border 16px solid transparent
+	// source is 1024px with 128px slices shown at 24px (1.5x the drawn
+	// contract's 1/8 scale — the line read too thin), so a 2x screen still
+	// samples it ~2.7:1 — see scripts/build-bubble-samples.py.
+	border 24px solid transparent
 	border-image url('/animondo/bubble/frame_0.webp') 128 fill round
 	// Boil at 12 fps, same clock as the hand-drawn icons (4 frames)
 	animation bubble-boil 0.3333s steps(1) infinite
@@ -1343,25 +1538,26 @@ main
 	&::after
 		content ''
 		position absolute
-		width 36px
-		height 36px
+		width 54px
+		height 54px
 		background url('/animondo/bubble/tail_0.webp') center / contain no-repeat
 		animation bubble-tail-boil 0.3333s steps(1) infinite
 
-	// Bubble above the character — tail below, pointing down. The 34px
+	// Bubble above the character — tail below, pointing down. The 51px
 	// offset (from the padding box) leaves the tail's root just touching
-	// the border line rather than sinking into the balloon. --tail-pos
-	// (from bubbleStyle, padding-box coordinates) slides the tail along the
-	// edge toward the character; without it, the tail sits in the middle.
+	// the border line rather than sinking into the balloon — everything at
+	// 1.5x the drawn contract, like the border. --tail-pos (from
+	// bubbleStyle, padding-box coordinates) slides the tail along the edge
+	// toward the character; without it, the tail sits in the middle.
 	&--top
 		&::after
-			bottom -34px
+			bottom -51px
 			left var(--tail-pos, 50%)
 			translate -50% 0
 
 	&--bottom
 		&::after
-			top -34px
+			top -51px
 			left var(--tail-pos, 50%)
 			translate -50% 0
 			rotate 180deg
@@ -1369,14 +1565,14 @@ main
 	// Bubble to the right of the character — tail on the left edge
 	&--right
 		&::after
-			left -34px
+			left -51px
 			top var(--tail-pos, 50%)
 			translate 0 -50%
 			rotate 90deg
 
 	&--left
 		&::after
-			right -34px
+			right -51px
 			top var(--tail-pos, 50%)
 			translate 0 -50%
 			rotate -90deg

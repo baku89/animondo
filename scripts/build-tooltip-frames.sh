@@ -8,6 +8,9 @@
 #   videos/tooltip_sound-on_ja.mov  809x456, 12 fps, 4F loop -> public/tooltip/sound-on_ja_{0..3}.webp
 #   videos/tooltip_explore_{pc,mobile}_{en,ja}.mov  809x456, 12 fps, 4F loop
 #                                   -> public/tooltip/explore_{pc,mobile}_{en,ja}_{0..3}.webp
+#   videos/tooltip_{click-me,tap-me}_{en,ja}.mov    809x456, 12 fps, 4F loop
+#                                   -> public/tooltip/{click-me,tap-me}_{en,ja}_{0..3}.webp
+#                                   (click-me speaks to fine pointers, tap-me to coarse)
 #
 # The bubble's tail roots at the bottom-left. SoundTooltip.vue flips it
 # vertically so the tail points up at the sound toggle; ExploreTooltip.vue
@@ -32,6 +35,11 @@ for lang in en ja; do
 		ffmpeg -v error -y -i "videos/tooltip_explore_${device}_${lang}.mov" \
 			-start_number 0 -c:v libwebp -lossless 1 \
 			"public/tooltip/explore_${device}_${lang}_%d.webp"
+	done
+	for verb in click-me tap-me; do
+		ffmpeg -v error -y -i "videos/tooltip_${verb}_${lang}.mov" \
+			-start_number 0 -c:v libwebp -lossless 1 \
+			"public/tooltip/${verb}_${lang}_%d.webp"
 	done
 done
 

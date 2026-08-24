@@ -59,10 +59,13 @@ watch(
 	width var(--tip-width)
 	aspect-ratio 809 / 456
 	// The tail's tip sits at ~12% / 94% of the box; --speaker-x/y (screen
-	// px, set by the page every drawn frame) is where it should point,
-	// clamped so the balloon stays on the paper. 0.53 = 456/809 x 0.94.
-	left unquote('clamp(0.5rem, calc(var(--speaker-x, 50vw) - var(--tip-width) * 0.12), calc(100vw - var(--tip-width) - 0.5rem))')
-	top unquote('max(0.5rem, calc(var(--speaker-y, 50vh) - var(--tip-width) * 0.53 - 0.25rem))')
+	// px, set by the page every drawn frame) is where it should point, and
+	// the rem terms hold the balloon a breath away up-right of the ink.
+	// NOT clamped to the viewport: a bubble half off the paper still points
+	// at its speaker, where a clamped one points at nobody.
+	// 0.53 = 456/809 x 0.94.
+	left calc(var(--speaker-x, 50vw) - var(--tip-width) * 0.12 + 1.5rem)
+	top calc(var(--speaker-y, 50vh) - var(--tip-width) * 0.53 - 2rem)
 	// Only a word in passing: taps land on the dancer under it
 	pointer-events none
 
@@ -94,11 +97,24 @@ watch(
 
 	// The exit: the draw-in backwards, the label gone at once (its base
 	// opacity is 0). ExploreTooltip emits `left` when this has played out.
+	// Its OWN keyframes, not the appear run in reverse: re-declaring a
+	// finished animation's name never restarts it, so `reverse` on the
+	// appear just snapped to its first frame.
 	&--leaving &__bubble
-		animation explore-tooltip-appear 0.3333s steps(1) reverse forwards
+		animation explore-tooltip-disappear 0.3333s steps(1) forwards
 
 	&--leaving &__label
 		animation none
+
+@keyframes explore-tooltip-disappear
+	0%
+		background-image url('/animondo/tooltip/bubble_3.webp')
+	25%
+		background-image url('/animondo/tooltip/bubble_2.webp')
+	50%
+		background-image url('/animondo/tooltip/bubble_1.webp')
+	75%
+		background-image url('/animondo/tooltip/bubble_0.webp')
 
 @keyframes explore-tooltip-appear
 	0%

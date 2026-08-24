@@ -47,9 +47,9 @@ watch(
 	z-index 110
 	// The flipped tail's tip sits at ~12% / 6% of the box; back the box off
 	// by that much so the tip lands on the toggle's bottom-right corner
-	// (the toggle: 1rem inset, clamp(3rem, 10vw, 6rem) across)
-	top calc(1rem + clamp(3rem, 10vw, 6rem) * 0.8)
-	left calc(1rem + clamp(3rem, 10vw, 6rem) * 0.8 - clamp(8.25rem, 34.5vw, 11.25rem) * 0.1)
+	// (the toggle: 1rem inset, clamp(4rem, 15vw, 6rem) across)
+	top calc(1rem + clamp(4rem, 15vw, 6rem) * 0.8)
+	left calc(1rem + clamp(4rem, 15vw, 6rem) * 0.8 - clamp(8.25rem, 34.5vw, 11.25rem) * 0.1)
 	width clamp(8.25rem, 34.5vw, 11.25rem)
 	aspect-ratio 809 / 456
 	// Only an announcement: taps fall through to whatever is under it
@@ -76,11 +76,24 @@ watch(
 
 	// The exit: the draw-in backwards, the label gone at once (its base
 	// opacity is 0). SoundTooltip emits `left` when this has played out.
+	// Its OWN keyframes, not the appear run in reverse: re-declaring a
+	// finished animation's name never restarts it, so `reverse` on the
+	// appear just snapped to its first frame.
 	&--leaving &__bubble
-		animation sound-tooltip-appear 0.3333s steps(1) reverse forwards
+		animation sound-tooltip-disappear 0.3333s steps(1) forwards
 
 	&--leaving &__label
 		animation none
+
+@keyframes sound-tooltip-disappear
+	0%
+		background-image url('/animondo/tooltip/bubble_3.webp')
+	25%
+		background-image url('/animondo/tooltip/bubble_2.webp')
+	50%
+		background-image url('/animondo/tooltip/bubble_1.webp')
+	75%
+		background-image url('/animondo/tooltip/bubble_0.webp')
 
 @keyframes sound-tooltip-appear
 	0%
