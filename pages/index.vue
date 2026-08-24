@@ -750,6 +750,11 @@ const BUBBLE_BOTTOM_CLEARANCE = 24
 // with the zoom so a zoomed-out dancer keeps the bubble snug instead of
 // floating a fixed distance away.
 const BUBBLE_GAP_MAX = 16
+/** The drawn tail's reach past the bubble's edge, toward the character.
+ * Keep in step with the CSS: the tail pseudo-element sits at ±51px. */
+const TAIL_LENGTH = 51
+/** Where the tail's TIP is pinned, in cells from the character's centre */
+const TIP_PER_CELL = 0.4
 const BUBBLE_MAX_WIDTH = 480
 /** Below this, a side-by-side layout is not worth the squeeze */
 const BUBBLE_MIN_WIDTH = 288
@@ -856,6 +861,18 @@ const bubbleGap = computed(() =>
 	clamp(zui.pixelsPerCell.value * 0.12, 4, BUBBLE_GAP_MAX)
 )
 
+// Centre-to-bubble-edge distance, measured from the TAIL'S TIP: the tip
+// is pinned TIP_PER_CELL cells out from the character's centre — pure
+// cell scaling — and the bubble's edge stands the full drawn tail
+// further out (the drawing neither scales nor tucks under the box).
+// Anchoring the bubble's edge instead (the old maths) let the tail
+// overshoot straight through a zoomed-out dancer; where the screen runs
+// out, the BUBBLE is what shrinks (width/maxHeight in bubbleStyle), the
+// tip never leaves its spot.
+const bubbleStandoff = computed(
+	() => zui.pixelsPerCell.value * TIP_PER_CELL + TAIL_LENGTH
+)
+
 // The screen point the camera steers the character to. Both axes start from
 // where the dancer was tapped; the main axis is clamped just far enough that
 // the bubble's minimum footprint fits between the character and the screen
@@ -864,7 +881,7 @@ const characterAnchor = computed<[number, number]>(() => {
 	const vw = winWidth.value
 	const vh = winHeight.value
 	const half = charHalf.value
-	const gap = bubbleGap.value
+	const standoff = bubbleStandoff.value
 	const [charX, charY] = bubbleCharAt.value
 
 	switch (bubbleSide.value) {
@@ -882,11 +899,11 @@ const characterAnchor = computed<[number, number]>(() => {
 					? clamp(
 							charX,
 							BUBBLE_MARGIN + half,
-							vw - BUBBLE_MARGIN - BUBBLE_MIN_WIDTH - gap - half
+							vw - BUBBLE_MARGIN - BUBBLE_MIN_WIDTH - standoff
 						)
 					: clamp(
 							charX,
-							BUBBLE_MARGIN + BUBBLE_MIN_WIDTH + gap + half,
+							BUBBLE_MARGIN + BUBBLE_MIN_WIDTH + standoff,
 							vw - BUBBLE_MARGIN - half
 						)
 			return [x, y]
@@ -912,14 +929,14 @@ const characterAnchor = computed<[number, number]>(() => {
 							charY,
 							BUBBLE_TOP_CLEARANCE + half,
 							Math.max(
-								vh - bubbleBottomClearance.value - minHeight - gap - half,
+								vh - bubbleBottomClearance.value - minHeight - standoff,
 								BUBBLE_TOP_CLEARANCE + half
 							)
 						)
 					: clamp(
 							charY,
 							Math.min(
-								BUBBLE_TOP_CLEARANCE + minHeight + gap + half,
+								BUBBLE_TOP_CLEARANCE + minHeight + standoff,
 								vh - bubbleBottomClearance.value - half
 							),
 							vh - bubbleBottomClearance.value - half
@@ -936,7 +953,6 @@ watchEffect(() => {
 const bubbleStyle = computed<Record<string, string>>(() => {
 	const vw = winWidth.value
 	const vh = winHeight.value
-	const half = charHalf.value
 	const [ax, ay] = characterAnchor.value
 	const side = bubbleSide.value
 
@@ -956,14 +972,14 @@ const bubbleStyle = computed<Record<string, string>>(() => {
 		}
 
 		if (side === 'bottom') {
-			const edge = ay + half + bubbleGap.value
+			const edge = ay + bubbleStandoff.value
 			return {
 				...common,
 				top: `${edge}px`,
 				maxHeight: `${vh - bubbleBottomClearance.value - edge}px`,
 			}
 		}
-		const edge = ay - half - bubbleGap.value
+		const edge = ay - bubbleStandoff.value
 		return {
 			...common,
 			bottom: `${vh - edge}px`,
@@ -972,7 +988,7 @@ const bubbleStyle = computed<Record<string, string>>(() => {
 	}
 
 	const edge =
-		side === 'right' ? ax + half + bubbleGap.value : ax - half - bubbleGap.value
+		side === 'right' ? ax + bubbleStandoff.value : ax - bubbleStandoff.value
 	const common = {
 		...(side === 'right'
 			? {left: `${edge}px`}
