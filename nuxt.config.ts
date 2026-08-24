@@ -20,7 +20,7 @@ export default defineNuxtConfig({
 				{
 					name: 'description',
 					content:
-						'EU・日本の作家たちが手描きしたキャラクターが、河内音頭に合わせて踊り続けるアニメーションの盆踊り。 / A bon-odori of hand-drawn characters by EU and Japanese artists, dancing endlessly to Kawachi Ondo.',
+						'EU・日本の作家たちが手描きしたキャラクターが、河内音頭に合わせて舞い続けるアニメーションの盆踊り。 / A bon-odori of hand-drawn characters by EU and Japanese artists, swaying endlessly to Kawachi Ondo.',
 				},
 				{property: 'og:type', content: 'website'},
 				{property: 'og:site_name', content: 'Animondo'},
@@ -28,7 +28,7 @@ export default defineNuxtConfig({
 				{
 					property: 'og:description',
 					content:
-						'EU・日本の作家たちが手描きしたキャラクターが、河内音頭に合わせて踊り続けるアニメーションの盆踊り。 / A bon-odori of hand-drawn characters by EU and Japanese artists, dancing endlessly to Kawachi Ondo.',
+						'EU・日本の作家たちが手描きしたキャラクターが、河内音頭に合わせて舞い続けるアニメーションの盆踊り。 / A bon-odori of hand-drawn characters by EU and Japanese artists, swaying endlessly to Kawachi Ondo.',
 				},
 				{property: 'og:url', content: 'https://x.baku89.com/animondo/'},
 				{property: 'og:image', content: 'https://x.baku89.com/animondo/ogp.jpg'},
