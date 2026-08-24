@@ -849,10 +849,11 @@ const bubbleBottomClearance = computed(() => {
 // Half of the on-screen footprint reserved for the character, zoom-aware
 const charHalf = computed(() =>
 	Math.min(
-		// 0.55 cells is the ink's actual half-extent; the old fixed +12px
-		// pad and 60px floor kept the bubble hovering far from a zoomed-out
-		// dancer, so the floor is now only what keeps the tail legible.
-		Math.max(zui.pixelsPerCell.value * 0.55, 24),
+		// 0.55 cells is the ink's actual half-extent. The floor is the
+		// drawn tail's own length (51px, which never scales with the
+		// zoom) plus a breath — any lower and a zoomed-out dancer ends
+		// up underneath the tail instead of at its tip.
+		Math.max(zui.pixelsPerCell.value * 0.55, 56),
 		Math.min(winWidth.value, winHeight.value) * 0.25
 	)
 )
