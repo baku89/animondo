@@ -68,31 +68,36 @@ watch(
 	// Only a word in passing: taps land on the dancer under it
 	pointer-events none
 
+	// The bubble's 8F sheet, paged by background-position — one decoded
+	// image, nothing to flicker. The box keeps the canvas's aspect, so a
+	// sheet frame fills it exactly.
 	&__bubble
 		position absolute
 		inset 0
-		background url('/animondo/tooltip/bubble_0.webp') center / contain no-repeat
+		background url('/animondo/tooltip/bubble.webp') 0 0 / 800% 100% no-repeat
 		animation tap-tooltip-appear 0.3333s steps(1) forwards, tap-tooltip-loop 0.3333s steps(1) 0.3333s infinite
 
 	// Hidden while the bubble draws itself in: the boil only starts after
-	// the appear's four frames, and every keyframe pins opacity back to 1
+	// the appear's four frames, and every keyframe pins opacity back to 1.
+	// The variants differ only by which 4F sheet they page.
 	&__label
 		position absolute
 		inset 0
 		opacity 0
-		background center / contain no-repeat
+		background 0 0 / 400% 100% no-repeat
+		animation tap-tooltip-label-boil 0.3333s steps(1) 0.3333s infinite
 
 		&--pc-en
-			animation tap-tooltip-label-pc-en 0.3333s steps(1) 0.3333s infinite
+			background-image url('/animondo/tooltip/click-me_en.webp')
 
 		&--pc-ja
-			animation tap-tooltip-label-pc-ja 0.3333s steps(1) 0.3333s infinite
+			background-image url('/animondo/tooltip/click-me_ja.webp')
 
 		&--mobile-en
-			animation tap-tooltip-label-mobile-en 0.3333s steps(1) 0.3333s infinite
+			background-image url('/animondo/tooltip/tap-me_en.webp')
 
 		&--mobile-ja
-			animation tap-tooltip-label-mobile-ja 0.3333s steps(1) 0.3333s infinite
+			background-image url('/animondo/tooltip/tap-me_ja.webp')
 
 	// The exit: the draw-in backwards, the label gone at once (its base
 	// opacity is 0). TapTooltip emits `left` when this has played out.
@@ -106,87 +111,45 @@ watch(
 
 @keyframes tap-tooltip-appear
 	0%
-		background-image url('/animondo/tooltip/bubble_0.webp')
+		background-position 0% 0
 	25%
-		background-image url('/animondo/tooltip/bubble_1.webp')
+		background-position 14.2857% 0
 	50%
-		background-image url('/animondo/tooltip/bubble_2.webp')
+		background-position 28.5714% 0
 	75%
-		background-image url('/animondo/tooltip/bubble_3.webp')
+		background-position 42.8571% 0
 
 @keyframes tap-tooltip-loop
 	0%
-		background-image url('/animondo/tooltip/bubble_4.webp')
+		background-position 57.1429% 0
 	25%
-		background-image url('/animondo/tooltip/bubble_5.webp')
+		background-position 71.4286% 0
 	50%
-		background-image url('/animondo/tooltip/bubble_6.webp')
+		background-position 85.7143% 0
 	75%
-		background-image url('/animondo/tooltip/bubble_7.webp')
+		background-position 100% 0
 
 @keyframes tap-tooltip-disappear
 	0%
-		background-image url('/animondo/tooltip/bubble_3.webp')
+		background-position 42.8571% 0
 	25%
-		background-image url('/animondo/tooltip/bubble_2.webp')
+		background-position 28.5714% 0
 	50%
-		background-image url('/animondo/tooltip/bubble_1.webp')
+		background-position 14.2857% 0
 	75%
-		background-image url('/animondo/tooltip/bubble_0.webp')
+		background-position 0% 0
 
-@keyframes tap-tooltip-label-pc-en
+@keyframes tap-tooltip-label-boil
 	0%
 		opacity 1
-		background-image url('/animondo/tooltip/click-me_en_0.webp')
+		background-position 0% 0
 	25%
 		opacity 1
-		background-image url('/animondo/tooltip/click-me_en_1.webp')
+		background-position 33.3333% 0
 	50%
 		opacity 1
-		background-image url('/animondo/tooltip/click-me_en_2.webp')
+		background-position 66.6667% 0
 	75%
 		opacity 1
-		background-image url('/animondo/tooltip/click-me_en_3.webp')
-
-@keyframes tap-tooltip-label-pc-ja
-	0%
-		opacity 1
-		background-image url('/animondo/tooltip/click-me_ja_0.webp')
-	25%
-		opacity 1
-		background-image url('/animondo/tooltip/click-me_ja_1.webp')
-	50%
-		opacity 1
-		background-image url('/animondo/tooltip/click-me_ja_2.webp')
-	75%
-		opacity 1
-		background-image url('/animondo/tooltip/click-me_ja_3.webp')
-
-@keyframes tap-tooltip-label-mobile-en
-	0%
-		opacity 1
-		background-image url('/animondo/tooltip/tap-me_en_0.webp')
-	25%
-		opacity 1
-		background-image url('/animondo/tooltip/tap-me_en_1.webp')
-	50%
-		opacity 1
-		background-image url('/animondo/tooltip/tap-me_en_2.webp')
-	75%
-		opacity 1
-		background-image url('/animondo/tooltip/tap-me_en_3.webp')
-
-@keyframes tap-tooltip-label-mobile-ja
-	0%
-		opacity 1
-		background-image url('/animondo/tooltip/tap-me_ja_0.webp')
-	25%
-		opacity 1
-		background-image url('/animondo/tooltip/tap-me_ja_1.webp')
-	50%
-		opacity 1
-		background-image url('/animondo/tooltip/tap-me_ja_2.webp')
-	75%
-		opacity 1
-		background-image url('/animondo/tooltip/tap-me_ja_3.webp')
+		background-position 100% 0
 </style>
