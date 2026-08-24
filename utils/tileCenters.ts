@@ -60,6 +60,16 @@ export const TILE_CENTERS: Record<string, Partial<Record<Tile, vec2[]>>> = {
 			[0.2347, 0.5454],
 			[0.1169, 0.5216],
 		],
+		[Tile.Death]: [
+			[0.0, 0.5],
+			[0.0754, 0.5],
+			[0.1507, 0.5],
+			[0.2261, 0.5],
+			[0.3015, 0.5],
+			[0.3768, 0.5],
+			[0.4522, 0.5],
+			[0.5275, 0.5],
+		],
 	},
 	edmunds: {
 		[Tile.Up]: [
@@ -101,6 +111,16 @@ export const TILE_CENTERS: Record<string, Partial<Record<Tile, vec2[]>>> = {
 			[0.3722, 0.5102],
 			[0.2027, 0.5051],
 			[0.0722, 0.5],
+		],
+		[Tile.Death]: [
+			[0.0, 0.5],
+			[0.0932, 0.551],
+			[0.2336, 0.5078],
+			[0.293, 0.4897],
+			[0.3523, 0.4715],
+			[0.4117, 0.4534],
+			[0.471, 0.4352],
+			[0.471, 0.4352],
 		],
 	},
 	honami: {
@@ -144,6 +164,16 @@ export const TILE_CENTERS: Record<string, Partial<Record<Tile, vec2[]>>> = {
 			[0.0947, 0.5],
 			[0.0391, 0.5],
 		],
+		[Tile.Death]: [
+			[0.0, 0.5],
+			[0.054, 0.4928],
+			[0.102, 0.4766],
+			[0.1445, 0.4712],
+			[0.2416, 0.4522],
+			[0.2871, 0.4378],
+			[0.3326, 0.4233],
+			[0.3782, 0.4089],
+		],
 	},
 	masa: {
 		[Tile.Up]: [
@@ -185,6 +215,16 @@ export const TILE_CENTERS: Record<string, Partial<Record<Tile, vec2[]>>> = {
 			[0.0602, 0.4838],
 			[0.041, 0.4958],
 			[0.0242, 0.4958],
+		],
+		[Tile.Death]: [
+			[0.0, 0.5],
+			[0.0352, 0.5204],
+			[0.1444, 0.4879],
+			[0.2801, 0.3788],
+			[0.3841, 0.3066],
+			[0.5231, 0.2285],
+			[0.624, 0.1842],
+			[0.7403, 0.1563],
 		],
 	},
 	noemie: {
@@ -228,6 +268,16 @@ export const TILE_CENTERS: Record<string, Partial<Record<Tile, vec2[]>>> = {
 			[0.1321, 0.5911],
 			[0.0319, 0.5456],
 		],
+		[Tile.Death]: [
+			[0.0, 0.5],
+			[0.0306, 0.5],
+			[0.109, 0.5],
+			[0.1875, 0.5],
+			[0.2659, 0.5],
+			[0.3443, 0.5],
+			[0.4227, 0.5],
+			[0.5012, 0.5],
+		],
 	},
 	sander: {
 		[Tile.Up]: [
@@ -269,6 +319,16 @@ export const TILE_CENTERS: Record<string, Partial<Record<Tile, vec2[]>>> = {
 			[0.0273, 0.4593],
 			[0.0, 0.2824],
 			[0.0, 0.3828],
+		],
+		[Tile.Death]: [
+			[0.0, 0.5],
+			[0.0622, 0.5001],
+			[0.1322, 0.512],
+			[0.2139, 0.4845],
+			[0.3, 0.4923],
+			[0.3799, 0.5441],
+			[0.4589, 0.6914],
+			[0.5194, 0.8189],
 		],
 	},
 	shinobu: {
@@ -312,6 +372,16 @@ export const TILE_CENTERS: Record<string, Partial<Record<Tile, vec2[]>>> = {
 			[0.2232, 0.5],
 			[0.0781, 0.5],
 		],
+		[Tile.Death]: [
+			[0.0, 0.5],
+			[0.0272, 0.4987],
+			[0.0486, 0.4974],
+			[0.07, 0.4961],
+			[0.1297, 0.5],
+			[0.2134, 0.5],
+			[0.355, 0.5],
+			[0.4966, 0.5],
+		],
 	},
 	sumito: {
 		[Tile.Up]: [
@@ -354,12 +424,25 @@ export const TILE_CENTERS: Record<string, Partial<Record<Tile, vec2[]>>> = {
 			[0.0, 0.527],
 			[0.0, 0.512],
 		],
+		[Tile.Death]: [
+			[0.0, 0.5],
+			[0.022, 0.5],
+			[0.0439, 0.5],
+			[0.1127, 0.5],
+			[0.1816, 0.5],
+			[0.2133, 0.5],
+			[0.245, 0.5],
+			[0.2767, 0.5],
+		],
 	},
 	// END GENERATED
 }
 
-// Appearing and vanishing barely stray from the template, so one trace (made
-// over baku's sheet) serves every artist — no per-artist nulls needed there.
+// Appearing barely strays from the template, so one trace (made over baku's
+// sheet) serves every artist. Vanishing used to share too, but the drawn
+// exits wander enough that a bubble hung on a dancer lost it mid-vanish —
+// every artist now has their own Death track above, and the shared one only
+// catches a comp exported before its vanish null was added.
 const SHARED_CENTERS: Partial<Record<Tile, vec2[]>> = {
 	[Tile.Death]: [
 		[0.0, 0.5],

@@ -1,11 +1,15 @@
 // Dump every {artist}_centers comp's nulls as JSON, for
 // scripts/build-tile-centers.py.
 //
-// Run inside AE (File > Scripts > Run Script File...) with the project open.
-// Each null is sampled at the first eight frames; which cell of the 3x2
-// sheet it sits over decides which tile it tracks, so layer names (and
-// their "up 2" duplicate suffixes) do not matter. Appear/vanish need no
-// nulls — the shared trace in utils/tileCenters.ts covers them.
+// Run inside AE (File > Scripts > Run Script File...) with the project
+// open. Writes straight to centers.txt beside the repo's package.json — no
+// dialogs, so it can also be driven from outside AE (osascript
+// DoScriptFile). Each null is sampled at the first eight frames; which
+// cell of the 3x2 sheet it sits over decides which tile it tracks, so
+// layer names (and their "up 2" duplicate suffixes) do not matter. A null
+// over the Vanish cell gives that artist its own vanish track; artists
+// without one keep the shared trace in utils/tileCenters.ts, as every
+// appear still does.
 (function () {
 	var FRAMES = 8;
 
@@ -63,11 +67,11 @@
 
 	var json = '{\n' + out.join(',\n') + '\n}\n';
 
-	var file = File.saveDialog('Save tile centers', 'JSON:*.json');
-	if (!file) return;
+	// This script lives in <repo>/scripts/; the export lands at the repo
+	// root, where build-tile-centers.py expects it
+	var file = new File(new File($.fileName).parent.parent.fsName + '/centers.txt');
 	file.encoding = 'UTF-8';
 	file.open('w');
 	file.write(json);
 	file.close();
-	alert('Wrote ' + exported.join(', ') + ' to\n' + file.fsName);
 })();
