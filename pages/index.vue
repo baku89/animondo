@@ -846,17 +846,11 @@ const bubbleBottomClearance = computed(() => {
 	return 16 + button + 8
 })
 
-// Half of the on-screen footprint reserved for the character, zoom-aware
-const charHalf = computed(() =>
-	Math.min(
-		// 0.55 cells is the ink's actual half-extent. The floor is the
-		// drawn tail's own length (51px, which never scales with the
-		// zoom) plus a breath — any lower and a zoomed-out dancer ends
-		// up underneath the tail instead of at its tip.
-		Math.max(zui.pixelsPerCell.value * 0.55, 56),
-		Math.min(winWidth.value, winHeight.value) * 0.25
-	)
-)
+// Half of the on-screen footprint reserved for the character: a pure
+// fraction of the cell, so the bubble holds the same relation to the
+// ink at every zoom. No floors, no caps — the scaling is the geometry,
+// and clamping it was exactly what made the distance drift with zoom.
+const charHalf = computed(() => zui.pixelsPerCell.value * 0.55)
 
 const bubbleGap = computed(() =>
 	clamp(zui.pixelsPerCell.value * 0.12, 4, BUBBLE_GAP_MAX)
