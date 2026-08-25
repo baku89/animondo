@@ -1,6 +1,11 @@
 <template>
 	<Teleport to="body">
-		<div v-if="open" class="about-modal" @click.self="$emit('close')">
+		<div
+			v-if="open"
+			class="about-modal"
+			@pointerdown="onPointerDown"
+			@click.self="onBackdropClick"
+		>
 			<div class="about-modal__panel">
 				<header class="about-modal__header">
 					<LocaleSwitch />
@@ -152,6 +157,24 @@ const artistNames = computed(() => {
 	return ordered.map(name => name.replace(/ /g, '\u00a0')).join(' \u00b7 ')
 })
 
+// The credits are there to be copied, so a drag that selects them must
+// survive: a press that starts on a name and lifts on the backdrop still
+// reports the overlay as the click's target, and closing there would snatch
+// the panel away mid-selection. Only a press that both begins and ends on
+// the backdrop, leaving nothing selected, counts as a click-away.
+let pressedBackdrop = false
+
+function onPointerDown(event: PointerEvent) {
+	pressedBackdrop = event.target === event.currentTarget
+}
+
+function onBackdropClick() {
+	if (!pressedBackdrop) return
+	const selection = window.getSelection()
+	if (selection && !selection.isCollapsed) return
+	emit('close')
+}
+
 onKeyStroke('Escape', () => {
 	if (props.open) emit('close')
 })
@@ -202,6 +225,10 @@ onKeyStroke('Escape', () => {
 		margin 0 auto
 		color black
 		line-height 1.7
+		// The one place in the piece where words are read rather than
+		// watched — names, titles and links here are meant to be copied
+		user-select text
+		-webkit-user-select text
 
 	// Fixed top-center: both top corners are taken by the round sound/close
 	// buttons, which float above the modal — and the switch sits centred on
