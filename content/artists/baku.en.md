@@ -6,4 +6,4 @@ workTitle: Olga Bell / ATA
 workYear: 2016
 ---
 
-Filmmaker and visual artist. He works widely across TV commercials, music videos, web and interactive pieces, pursuing a variety of styles in moving image and graphics through an accumulation of experiments in diverse modes of expression. Awards include the New Face Award at the 19th Japan Media Arts Festival, the Grand Prize at the Tokyo TDC Awards 2025, and selection for Contemporary Japanese Photography vol.23 at the Tokyo Photographic Art Museum.
+Filmmaker and visual artist. He works widely across TV commercials, music videos, web and interactive pieces, pursuing a variety of styles in moving image and graphics through an accumulation of experiments in diverse modes of expression. Awards include the New Face Award at the 19th Japan Media Arts Festival, the Grand Prize at the Tokyo TDC Awards 2025, and selection for *Contemporary Japanese Photography vol.23* at the Tokyo Photographic Art Museum.

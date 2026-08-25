@@ -57,7 +57,7 @@
 					</div>
 					<dl>
 						<dt>{{ t('about.artists.label') }}</dt>
-						<dd>{{ artistNames }}</dd>
+						<dd>{{ names('about.artists.list') }}</dd>
 						<dt>{{ t('about.music.label') }}</dt>
 						<dd>{{ t('about.music.value') }}</dd>
 						<dt>{{ t('about.dev.label') }}</dt>
@@ -120,42 +120,58 @@ const bodyHtml = computed(() =>
 // The caption link beside the YouTube icon, mirrored into its hover
 const youtubeHover = ref(false)
 
-// Names are the one thing in these lists that must not break mid-way; the
-// middle dots stay breakable so a long list still wraps.
-function names(key: MessageKey) {
-	const list = t(key).split(' \u00b7 ')
-	if (list.length < 2) return t(key)
-	return list.map(name => name.replace(/ /g, '\u00a0')).join(' \u00b7 ')
-}
+const SEPARATOR = ' \u00b7 '
 
-// The artists take the floor in a fresh order every time the panel opens \u2014
-// no billing order among peers. One permutation per opening, shared by both
-// languages, so switching locale mid-view keeps everyone in place.
-const artistOrder = ref<number[]>([])
+// Nobody in the credits outranks anybody, so no line keeps a billing
+// order: every list is dealt afresh each time the panel opens. One
+// permutation per list per opening, shared by both languages, so
+// switching locale mid-view keeps everyone in place.
+const SHUFFLED_KEYS: MessageKey[] = [
+	'about.artists.list',
+	'about.curators.value',
+	'about.recording.value',
+	'about.mentors.value',
+	'about.thanks.value',
+]
+
+// Kagan Hotel is the house that lent the recording its floor, not a peer
+// standing in line: the thanks close on it however the people fall.
+const PINNED_TAIL = new Set<MessageKey>(['about.thanks.value'])
+
+const orders = ref<Partial<Record<MessageKey, number[]>>>({})
 
 watch(
 	() => props.open,
 	open => {
 		if (!open) return
-		const count = t('about.artists.list').split(' \u00b7 ').length
-		const order = Array.from({length: count}, (_, i) => i)
-		for (let i = order.length - 1; i > 0; i--) {
-			const j = Math.floor(Math.random() * (i + 1))
-			;[order[i], order[j]] = [order[j]!, order[i]!]
+		const dealt: Partial<Record<MessageKey, number[]>> = {}
+		for (const key of SHUFFLED_KEYS) {
+			const count = t(key).split(SEPARATOR).length
+			const order = Array.from({length: count}, (_, i) => i)
+			// A pinned name sits out the deal, so the shuffle stops short
+			const loose = PINNED_TAIL.has(key) ? count - 1 : count
+			for (let i = loose - 1; i > 0; i--) {
+				const j = Math.floor(Math.random() * (i + 1))
+				;[order[i], order[j]] = [order[j]!, order[i]!]
+			}
+			dealt[key] = order
 		}
-		artistOrder.value = order
+		orders.value = dealt
 	},
 	{immediate: true}
 )
 
-const artistNames = computed(() => {
-	const list = t('about.artists.list').split(' \u00b7 ')
-	const ordered =
-		artistOrder.value.length === list.length
-			? artistOrder.value.map(i => list[i]!)
-			: list
-	return ordered.map(name => name.replace(/ /g, '\u00a0')).join(' \u00b7 ')
-})
+// Names are the one thing in these lists that must not break mid-way; the
+// middle dots stay breakable so a long list still wraps.
+function names(key: MessageKey) {
+	const list = t(key).split(SEPARATOR)
+	if (list.length < 2) return t(key)
+	// A permutation dealt for the other language is no use if that list
+	// names a different number of people
+	const order = orders.value[key]
+	const dealt = order?.length === list.length ? order.map(i => list[i]!) : list
+	return dealt.map(name => name.replace(/ /g, '\u00a0')).join(SEPARATOR)
+}
 
 // The credits are there to be copied, so a drag that selects them must
 // survive: a press that starts on a name and lifts on the backdrop still

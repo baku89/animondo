@@ -207,6 +207,7 @@ url: https://noemiemarsily.tumblr.com/
 - 段落内の**改行はソース整形扱いで連結される**。連結時、境界の文字が CJK なら空白を入れず、そうでなければ空白 1 個を補う（日本語の行折り返しで不自然な空きが出ないようにするため）。Markdown も HTML も改行を空白に潰すので、レンダラに渡す前段で処理している。`utils/artists.ts` の `unwrapSoftBreaks` 参照
 - ただし `-` `*` `>` `#` `1.` ``` などで始まる**ブロック開始行は連結されない**（連結するとリストが 1 段落に潰れるため）。逆にブロック開始行でない行は上の行に連結されるので、リスト項目の折り返しも詰まって表示される
 - リンクは `target="_blank" rel="noopener"` が自動で付く（作品を開いたまま別タブで開くため）
+- 英語版の本文中の作品タイトルは `*Title*`（em）で囲む。日本語版の『』に対応する箇所で、バブル側は `.profile-bubble__text em` が合成イタリックで傾ける（スチルのキャプションと同じ機構）。原文の語句自体は変えない
 - バブル内の `p` / `ul` / `ol` / `li` / `strong` / `a` は `pages/index.vue` の `&__text` で個別にスタイルを当てている。`assets/style.styl` のリセットが `font-weight` や `list-style` を潰しているため
 - `url` は言語ごとに別々に持てる（`ArtistInfo.url` は `Record<Locale, string>`）。同じ URL でよければ両ファイルに同じ値を書く
 

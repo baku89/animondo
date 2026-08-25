@@ -2036,6 +2036,12 @@ main
 		strong
 			font-weight bold
 
+		// Work titles lean in the prose the way they do in the still's
+		// caption — same synthetic italic, same plain `italic` (see the
+		// figcaption's note on why an angle must not be given)
+		em
+			font-style italic
+
 		a
 			text-decoration underline
 
