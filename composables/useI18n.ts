@@ -24,7 +24,7 @@ const messages = {
 		'about.mentors.value': 'Michelle and Uri Kranot · Koji Yamamura',
 		'about.thanks.label': 'Special thanks',
 		'about.thanks.value':
-			'Rie Alkemade · Sana Ouchtati · Kenji Kadowaki · Noel Kitayama · Christina Kamperi · Dima Al Youzbaki · Pero Fukuda · Yuki Arai · Kota Nakamura · Isabelle Cavé · Kagan Hotel',
+			'Rie Alkemade · Sana Ouchtati · Kenji Kadowaki · Noel Kitayama · Christina Kamperi · Dima Al Youzbaki · Isabelle Cavé · Pero Fukuda · Yuki Arai · Kota Nakamura · Kagan Hotel',
 		'about.type.label': 'Typefaces',
 		'about.type.value': 'BBB Sprat by Ethan Nakache & Bye Bye Binary',
 		'about.support.label': 'Supported by',
@@ -71,7 +71,7 @@ const messages = {
 		'about.mentors.value': 'ミシェル&ウリ・クラノット · 山村浩二',
 		'about.thanks.label': 'Special thanks',
 		'about.thanks.value':
-			'オークメイド理恵 · サナ・ウシュタティ · 門脇健路 · 北山ノエル · クリスティーナ・カンペリ · ディマ・アル・ユーズバキ · 福田ぺろ · 新井佑季 · 中村洸太 · イザベル・カヴェ · 河岸ホテル',
+			'オークメイド理恵 · サナ・ウシュタティ · 門脇健路 · 北山ノエル · クリスティーナ・カンペリ · ディマ・アル・ユーズバキ · イザベル・カヴェ · 福田ぺろ · 新井佑季 · 中村洸太 · 河岸ホテル',
 		'about.type.label': 'Typefaces',
 		'about.type.value': 'BBB Sprat by Ethan Nakache & Bye Bye Binary',
 		'about.support.label': 'Supported by',
