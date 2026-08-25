@@ -1,6 +1,6 @@
 ---
 name: Noémie Marsily
-url: https://noemiemarsily.tumblr.com/
+url: https://www.noemiemarsily.com
 source: https://animation.hiroshimafest.org/en/program/00001950/
 workTitle: Whatever Moves Is Alive
 workYear: 2022

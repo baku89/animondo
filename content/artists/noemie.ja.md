@@ -1,6 +1,6 @@
 ---
 name: ノエミ・マルシリ
-url: https://noemiemarsily.tumblr.com/
+url: https://www.noemiemarsily.com
 source: https://animation.hiroshimafest.org/program/00001929/
 workTitle: なんであれ動いているものは生きている
 workYear: 2022

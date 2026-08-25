@@ -190,7 +190,7 @@ Safari は `texSubImage2D(VideoFrame)` の YUV→RGB 変換を CPU でやる（�
 ```markdown
 ---
 name: ノエミ・マルシリ
-url: https://noemiemarsily.tumblr.com/
+url: https://www.noemiemarsily.com
 ---
 
 ブリュッセル拠点のイラストレーター・漫画家・アニメーション作家。
