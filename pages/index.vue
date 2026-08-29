@@ -1229,8 +1229,22 @@ function framesElapsed(times: number[], t: number): number {
 	return lo
 }
 
+// Turn 5's head, where the stage is handed to the visitor
+const STAGE_UNLOCK_FRAME = 32
+
+// The explore hint has its moment once; a skipped-over frame still spends it
+let exploreTipDue = true
+
+// Frames actually danced. The two milestones below are about what has been
+// SEEN — the four rings standing, free play under way — so they count the
+// dance, not the music: a long absence steps over frames without dancing
+// them (see advanceBeatClock), and the rings owe the visitor their turns
+// whenever they finally get them.
+let dancedFrames = 0
+
 function tickFrame(isLast: boolean) {
 	currentFrame += 1
+	dancedFrames += 1
 
 	const frame = currentFrame % 8
 	if (frame === 0 && currentFrame > 0) {
@@ -1260,15 +1274,19 @@ function tickFrame(isLast: boolean) {
 	}
 
 	// The moment turn 5 begins (the four rings have formed): the stage is
-	// handed over, and the ? and the pads arrive together on the same beat
-	if (currentFrame === 32) {
+	// handed over, and the ? and the pads arrive together on the same beat.
+	// Asked as a crossing, not an instant: a long absence skips frames
+	// (see advanceBeatClock), and a missed instant would lock the stage
+	// for good.
+	if (!stageInteractive.value && dancedFrames >= STAGE_UNLOCK_FRAME) {
 		stageInteractive.value = true
 		aboutVisible.value = true
 	}
 
 	// Two turns into free play the explore hint speaks up, with the tap-me
 	// hint clearing its throat a few seconds behind it
-	if (currentFrame === EXPLORE_TIP_FRAME) {
+	if (exploreTipDue && dancedFrames >= EXPLORE_TIP_FRAME) {
+		exploreTipDue = false
 		exploreTip.speak()
 		startTapTipSoon()
 	}
@@ -1328,7 +1346,8 @@ function easeInOutCubic(t: number): number {
 }
 
 // Called on every frame tick (catch-up bursts included — it only reads
-// currentFrame, so replays land on the same camera)
+// dancedFrames, so replays land on the same camera, and an absence stepped
+// over leaves the pull-out paired with the rings it was drawn for)
 function syncOpeningDolly() {
 	if (dollyDone) return
 	if (zui.followTarget.value) {
@@ -1336,7 +1355,7 @@ function syncOpeningDolly() {
 		return
 	}
 	const progress =
-		(currentFrame - DOLLY_FROM_FRAME) / (DOLLY_TO_FRAME - DOLLY_FROM_FRAME)
+		(dancedFrames - DOLLY_FROM_FRAME) / (DOLLY_TO_FRAME - DOLLY_FROM_FRAME)
 	// setOpeningCells speaks short-side cells; the resting shot is set in
 	// LONG-side cells, so convert by the screen's aspect (a portrait phone
 	// and a landscape desktop rest on the same fifteen-cell sweep)
@@ -1369,6 +1388,10 @@ const {start: hideBeatFlash} = useTimeoutFn(
 	{immediate: false}
 )
 let lastFlashedBeat = -1
+
+// How much of a missed stretch is worth dancing through on return: eight
+// turns, a little under seven seconds of music
+const MAX_CATCHUP_FRAMES = 64
 
 function advanceBeatClock() {
 	if (!audio.hasStarted.value) return
@@ -1418,6 +1441,19 @@ function advanceBeatClock() {
 	// Catch-up bursts (a hidden tab, the loop seam) fall out of the same
 	// arithmetic; only the last frame of a burst touches the videos.
 	const target = frameTarget(now - FRAME_OFFSET * FRAME_SLOT)
+
+	// A hidden tab stops rAF while the music plays on, so coming back can
+	// leave hours of frames to make up — and replaying them all is one
+	// synchronous burst that holds the page still for as long as it takes
+	// (twelve hours away measured 23 seconds of a frozen stage over
+	// unbothered music). The dance has no plot to miss: step over the
+	// absence in WHOLE TURNS, so the frame stays on the same footing
+	// against the beat grid (%8) that it left on, and replay only the last
+	// few so the return still eases in rather than teleports.
+	const behind = target - currentFrame
+	if (behind > MAX_CATCHUP_FRAMES) {
+		currentFrame += Math.ceil((behind - MAX_CATCHUP_FRAMES) / 8) * 8
+	}
 
 	while (currentFrame < target) {
 		tickFrame(currentFrame + 1 === target)
